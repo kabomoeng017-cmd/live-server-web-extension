@@ -1,8 +1,7 @@
 package bw.gov.dtef.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,7 +23,7 @@ public class ApplicationDraftController {
     public ApplicationDraftController(ApplicationDraftRepository repository, ObjectMapper mapper) { this.repository = repository; this.mapper = mapper; }
 
     @GetMapping
-    public Map<String, Object> get(@AuthenticationPrincipal Jwt jwt) throws JsonProcessingException {
+    public Map<String, Object> get(@AuthenticationPrincipal Jwt jwt) {
         return repository.findById(jwt.getSubject())
             .map(d -> {
                 try { return Map.<String, Object>of("payload", mapper.readValue(d.getPayloadJson(), Map.class), "updatedAt", d.getUpdatedAt()); }
@@ -34,7 +33,7 @@ public class ApplicationDraftController {
 
     @PutMapping
     @Transactional
-    public Map<String, Object> save(@RequestBody @NotNull Map<String, Object> payload, @AuthenticationPrincipal Jwt jwt) throws JsonProcessingException {
+    public Map<String, Object> save(@RequestBody @NotNull Map<String, Object> payload, @AuthenticationPrincipal Jwt jwt) {
         if (payload == null || !ALLOWED_FIELDS.containsAll(payload.keySet())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Draft contains unsupported fields.");
         JsonNode tree = mapper.valueToTree(payload);
         if (containsSensitiveKey(tree)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Sensitive identity/contact fields must not be stored in an application draft.");

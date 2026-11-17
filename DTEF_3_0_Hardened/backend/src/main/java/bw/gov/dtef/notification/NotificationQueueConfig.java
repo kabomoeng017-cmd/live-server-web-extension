@@ -2,7 +2,7 @@ package bw.gov.dtef.notification;
 
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,5 +14,5 @@ public class NotificationQueueConfig {
     @Bean Queue notificationQueue() {
         return QueueBuilder.durable(QUEUE).deadLetterExchange("").deadLetterRoutingKey(DEAD_LETTER_QUEUE).build();
     }
-    @Bean Jackson2JsonMessageConverter jacksonMessageConverter() { return new Jackson2JsonMessageConverter(); }
+    @Bean JacksonJsonMessageConverter jacksonMessageConverter() { return new JacksonJsonMessageConverter(); }
 }
