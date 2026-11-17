@@ -85,7 +85,7 @@ class DtefInfrastructureIntegrationTest {
     void postgresFlywayRedisOtpAndApplicationDocumentSubmissionWorkTogether() {
         String migrationVersion = jdbc.queryForObject(
             "select max(version) from flyway_schema_history where success = true", String.class);
-        assertThat(migrationVersion).isEqualTo("3");
+        assertThat(migrationVersion).isEqualTo("4");
 
         // Prove the integration test is using the disposable Redis service, not an in-memory substitute.
         String redisProbe = "dtef:integration:probe:" + java.util.UUID.randomUUID();
