@@ -77,10 +77,14 @@ class ApplicationServiceTest {
     }
 
 
-    @Test void officerCanAdvanceApplicationAndTheChangeIsAudited() {
+    @Test void officerCanAdvanceApplicationWhenDemoDocumentsAreExplicitlyMarkedAccepted() {
         String reference = "DTEF-2026-00000002";
         SponsorshipApplication existing = new SponsorshipApplication(reference, "student.demo", "UB", "BSc", UUID.randomUUID());
+        DocumentRecord admission = document("ADMISSION_LETTER", "DEMO_ACCEPTED");
         when(applications.findByReference(reference)).thenReturn(Optional.of(existing));
+        when(applicationDocuments.findByApplicationReferenceOrderByLinkedAtAsc(reference))
+            .thenReturn(List.of(new ApplicationDocumentLink(reference, admission.getId(), "ADMISSION_LETTER")));
+        when(documents.findAllById(List.of(admission.getId()))).thenReturn(List.of(admission));
 
         SponsorshipApplication updated = service.updateStatus("officer.demo", reference, ApplicationStatus.DOCUMENTS_VERIFIED, null);
 
@@ -91,6 +95,54 @@ class ApplicationServiceTest {
         assertEquals("DOCUMENTS_VERIFIED", captured.getValue().getToStatus());
         assertEquals("officer.demo", captured.getValue().getChangedBy());
         verify(audit).record("officer.demo", "APPLICATION_STATUS_CHANGED", "APPLICATION", reference);
+    }
+
+    @Test void officerCannotVerifyApplicationWhileAnyDocumentIsPendingScan() {
+        String reference = "DTEF-2026-00000006";
+        SponsorshipApplication existing = new SponsorshipApplication(reference, "student.demo", "UB", "BSc", UUID.randomUUID());
+        DocumentRecord pending = document("ADMISSION_LETTER", "PENDING_SCAN");
+        when(applications.findByReference(reference)).thenReturn(Optional.of(existing));
+        when(applicationDocuments.findByApplicationReferenceOrderByLinkedAtAsc(reference))
+            .thenReturn(List.of(new ApplicationDocumentLink(reference, pending.getId(), "ADMISSION_LETTER")));
+        when(documents.findAllById(List.of(pending.getId()))).thenReturn(List.of(pending));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+            () -> service.updateStatus("officer.demo", reference, ApplicationStatus.DOCUMENTS_VERIFIED, null));
+
+        assertEquals(409, error.getStatusCode().value());
+        assertEquals(ApplicationStatus.APPLIED, existing.getStatus());
+        verify(history, never()).save(any());
+        verify(audit, never()).record(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test void productionDocumentVerificationRejectsDemoAcceptedFiles() {
+        when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(false);
+        String reference = "DTEF-2026-00000007";
+        SponsorshipApplication existing = new SponsorshipApplication(reference, "student.demo", "UB", "BSc", UUID.randomUUID());
+        DocumentRecord demoAccepted = document("ADMISSION_LETTER", "DEMO_ACCEPTED");
+        when(applications.findByReference(reference)).thenReturn(Optional.of(existing));
+        when(applicationDocuments.findByApplicationReferenceOrderByLinkedAtAsc(reference))
+            .thenReturn(List.of(new ApplicationDocumentLink(reference, demoAccepted.getId(), "ADMISSION_LETTER")));
+        when(documents.findAllById(List.of(demoAccepted.getId()))).thenReturn(List.of(demoAccepted));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+            () -> service.updateStatus("officer.demo", reference, ApplicationStatus.DOCUMENTS_VERIFIED, null));
+
+        assertEquals(409, error.getStatusCode().value());
+    }
+
+    @Test void cleanDocumentsCanBeVerifiedOutsideDemoProfile() {
+        when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(false);
+        String reference = "DTEF-2026-00000011";
+        SponsorshipApplication existing = new SponsorshipApplication(reference, "student.demo", "University of Botswana", "BSc", UUID.randomUUID());
+        DocumentRecord clean = document("ADMISSION_LETTER", "CLEAN");
+        when(applications.findByReference(reference)).thenReturn(Optional.of(existing));
+        when(applicationDocuments.findByApplicationReferenceOrderByLinkedAtAsc(reference))
+            .thenReturn(List.of(new ApplicationDocumentLink(reference, clean.getId(), "ADMISSION_LETTER")));
+        when(documents.findAllById(List.of(clean.getId()))).thenReturn(List.of(clean));
+
+        SponsorshipApplication updated = service.updateStatus("officer.demo", reference, ApplicationStatus.DOCUMENTS_VERIFIED, null);
+        assertEquals(ApplicationStatus.DOCUMENTS_VERIFIED, updated.getStatus());
     }
 
     @Test void rejectionRequiresAReasonAndDoesNotChangeTheApplication() {
