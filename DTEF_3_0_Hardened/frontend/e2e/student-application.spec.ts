@@ -95,6 +95,17 @@ test.describe("student application submission", () => {
     await expect(page.getByRole("heading", { name: reference! })).toBeVisible();
     await expect(page.locator(".badge")).toContainText("APPLIED");
     await expect(page.getByText(/Recorded/)).toBeVisible();
+
+    // Reload and query again to verify the application and status history persist.
+    await page.reload();
+    await expect(page.getByRole("heading", { name: /Application Tracker/i })).toBeVisible();
+    await page.getByLabel(/application reference/i).fill(reference!);
+    await page.getByRole("button", { name: /check status/i }).click();
+    await expect(page.getByRole("heading", { name: reference! })).toBeVisible();
+    await expect(page.locator(".badge")).toContainText("APPLIED");
+    await expect(page.getByText("University of Botswana", { exact: true })).toBeVisible();
+    await expect(page.getByText("BSc Computer Science", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Recorded/)).toBeVisible();
   });
 });
 
