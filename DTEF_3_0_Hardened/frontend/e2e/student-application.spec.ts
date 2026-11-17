@@ -66,8 +66,12 @@ test.describe("student application submission", () => {
 
     await page.getByLabel(/admission letter/i).setInputFiles(testPdf("admission.pdf"));
     await expect(page.getByText(/Uploaded: admission_letter\.pdf/i)).toBeVisible();
+    // The demo OCR response arrives asynchronously; wait for it before the student confirms/corrects fields.
+    await expect(page.getByText(/Extraction mode: DEMO_SIMULATION/i)).toBeVisible();
     await page.getByLabel(/institution/i).fill("University of Botswana");
     await page.getByLabel(/programme/i).fill("BSc Computer Science");
+    await expect(page.getByLabel(/institution/i)).toHaveValue("University of Botswana");
+    await expect(page.getByLabel(/programme/i)).toHaveValue("BSc Computer Science");
     await page.getByRole("button", { name: /^continue$/i }).click();
 
     await page.getByLabel(/omang copy/i).setInputFiles(testPdf("omang-copy.pdf"));
