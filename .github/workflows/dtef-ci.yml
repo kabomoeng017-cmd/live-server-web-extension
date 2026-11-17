@@ -1,0 +1,237 @@
+name: DTEF 3.0 branch CI
+
+on:
+  push:
+    branches:
+      - dtef-3.0-milestone-4.2
+  pull_request:
+    branches:
+      - dtef-3.0-milestone-4.2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dtef-3.0-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-source:
+    name: Extract DTEF source into this branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Verify and extract the uploaded Milestone 4.2 archive
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BRANCH_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_DIR="DTEF_3_0_Hardened"
+          ARCHIVE="DTEF_3_0_Milestone_4_2_Runtime_Readiness (1).zip"
+          EXPECTED_SHA="bb6ccadfe90d7afc151559cda0842a5a95a89f8262ad025a138a463f3d078383"
+
+          if [[ ! -d "$SOURCE_DIR" ]]; then
+            test -s "$ARCHIVE"
+            echo "$EXPECTED_SHA  $ARCHIVE" | sha256sum --check -
+            mkdir -p "$RUNNER_TEMP/dtef-unpack"
+            unzip -q "$ARCHIVE" -d "$RUNNER_TEMP/dtef-unpack"
+            test -d "$RUNNER_TEMP/dtef-unpack/DTEF_3_0_Hardened"
+            cp -a "$RUNNER_TEMP/dtef-unpack/DTEF_3_0_Hardened" "$SOURCE_DIR"
+            # Do not commit a generated TypeScript build cache.
+            rm -f "$SOURCE_DIR/frontend/tsconfig.tsbuildinfo"
+
+            # Bootstrap the extracted source into this branch only.
+            # Pull-request runs test an extracted workspace without pushing.
+            if [[ "$EVENT_NAME" != "pull_request" ]]; then
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git add "$SOURCE_DIR"
+              if ! git diff --cached --quiet; then
+                git commit -m "chore(dtef): extract milestone 4.2 source for CI"
+                git push origin "HEAD:$BRANCH_NAME"
+              fi
+            fi
+          fi
+
+          test -s "$SOURCE_DIR/README.md"
+          test -s "$SOURCE_DIR/scripts/run-local-regression.sh"
+
+      - name: Publish extracted source for the test jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-source
+          path: DTEF_3_0_Hardened/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 5
+
+  source-regression:
+    name: Source, simulator and security regressions
+    needs: prepare-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dtef-source
+          path: DTEF_3_0_Hardened
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run local regression suite
+        run: bash DTEF_3_0_Hardened/scripts/run-local-regression.sh
+
+  frontend:
+    name: Frontend install, typecheck, tests and production build
+    needs: prepare-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dtef-source
+          path: DTEF_3_0_Hardened
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: DTEF_3_0_Hardened/frontend/package-lock.json
+      - name: Install locked frontend dependencies
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm ci
+      - name: TypeScript typecheck
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm run typecheck
+      - name: Frontend unit tests
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm test
+      - name: Next.js production build
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm run build
+
+  backend:
+    name: Backend Maven and Testcontainers verification
+    needs: prepare-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dtef-source
+          path: DTEF_3_0_Hardened
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: DTEF_3_0_Hardened/backend/pom.xml
+      - name: Verify Docker is available for Testcontainers
+        run: docker info
+      - name: Run Maven unit and integration tests
+        working-directory: DTEF_3_0_Hardened
+        run: mvn -B -ntp -f backend/pom.xml clean verify
+      - name: Verify JUnit evidence and packaged application
+        working-directory: DTEF_3_0_Hardened
+        run: |
+          node tests/ci/assert-maven-reports.mjs backend/target/surefire-reports
+          test -s backend/target/dtef-3.0.0.jar
+      - name: Upload JUnit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-junit-evidence
+          path: |
+            DTEF_3_0_Hardened/backend/target/surefire-reports/
+            DTEF_3_0_Hardened/backend/target/dtef-3.0.0.jar
+          if-no-files-found: warn
+
+  browser-e2e:
+    name: Docker Compose and Playwright student journey
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dtef-source
+          path: DTEF_3_0_Hardened
+      - name: Start isolated local demo stack
+        working-directory: DTEF_3_0_Hardened
+        run: |
+          cp .env.example .env
+          docker compose down -v --remove-orphans || true
+          docker compose up -d --build
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null && curl -fsS http://127.0.0.1:8080/api/health >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose ps
+          docker compose logs --no-color
+          exit 1
+      - name: Install browser test dependencies
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run student application browser journey
+        working-directory: DTEF_3_0_Hardened/frontend
+        env:
+          CI: 'true'
+        run: npm run test:e2e
+      - name: Upload Playwright and Compose evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-browser-e2e-evidence
+          path: |
+            DTEF_3_0_Hardened/frontend/playwright-report/
+            DTEF_3_0_Hardened/frontend/test-results/
+          if-no-files-found: ignore
+      - name: Stop isolated demo stack
+        if: always()
+        working-directory: DTEF_3_0_Hardened
+        run: docker compose down -v --remove-orphans || true
+
+  container-build:
+    name: Docker Compose validation and image builds
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dtef-source
+          path: DTEF_3_0_Hardened
+      - name: Validate Compose and build both images
+        working-directory: DTEF_3_0_Hardened
+        run: |
+          docker compose config --quiet
+          docker build -t dtef-backend:ci ./backend
+          docker build --build-arg API_INTERNAL_BASE=http://backend:8080/api -t dtef-frontend:ci ./frontend
