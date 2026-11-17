@@ -44,6 +44,15 @@ public class DocumentStorageService {
         return new StoredFile(storageKey, contentType, hash, bytes.length);
     }
 
+    public byte[] read(String storageKey) throws IOException {
+        if (storageKey == null || !storageKey.matches("[0-9a-fA-F-]{36}"))
+            throw new IllegalArgumentException("Invalid document storage key.");
+        Path target = root.resolve(storageKey).normalize();
+        if (!target.startsWith(root) || Files.isSymbolicLink(target) || !Files.isRegularFile(target, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+            throw new IllegalArgumentException("Stored document was not found.");
+        return Files.readAllBytes(target);
+    }
+
     public void delete(String storageKey) {
         if (storageKey == null || !storageKey.matches("[0-9a-fA-F-]{36}")) return;
         try { Files.deleteIfExists(root.resolve(storageKey).normalize()); }
