@@ -1,0 +1,67 @@
+package bw.gov.dtef.officer;
+
+import bw.gov.dtef.application.ApplicationDocumentLinkRepository;
+import bw.gov.dtef.audit.AuditService;
+import bw.gov.dtef.document.DocumentRecord;
+import bw.gov.dtef.document.DocumentRepository;
+import bw.gov.dtef.document.DocumentStorageService;
+import org.springframework.context.annotation.Profile;
+import org.springframework.http.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/officer/applications/{reference}/documents")
+@Profile("demo")
+public class OfficerDemoDocumentController {
+    private final ApplicationDocumentLinkRepository links;
+    private final DocumentRepository documents;
+    private final DocumentStorageService storage;
+    private final AuditService audit;
+
+    public OfficerDemoDocumentController(ApplicationDocumentLinkRepository links,
+                                         DocumentRepository documents,
+                                         DocumentStorageService storage,
+                                         AuditService audit) {
+        this.links = links;
+        this.documents = documents;
+        this.storage = storage;
+        this.audit = audit;
+    }
+
+    @GetMapping("/{documentId}")
+    public ResponseEntity<byte[]> download(@PathVariable String reference,
+                                           @PathVariable UUID documentId,
+                                           @AuthenticationPrincipal Jwt jwt) throws IOException {
+        if (!links.existsByApplicationReferenceAndDocumentId(reference, documentId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document is not linked to this application.");
+        }
+        DocumentRecord document = documents.findById(documentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document was not found."));
+        if (!"DEMO_ACCEPTED".equals(document.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Document is not available for demo review.");
+        }
+
+        byte[] content;
+        try {
+            content = storage.read(document.getStorageKey());
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Stored document was not found.");
+        }
+        audit.record(jwt.getSubject(), "OFFICER_DOCUMENT_ACCESSED", "DOCUMENT", documentId.toString());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentDisposition(ContentDisposition.attachment()
+            .filename(document.getOriginalName(), StandardCharsets.UTF_8).build());
+        headers.setCacheControl(CacheControl.noStore());
+        headers.set("X-Content-Type-Options", "nosniff");
+        headers.set("X-DTEF-Document-Mode", "DEMO_UNSCANNED");
+        return new ResponseEntity<>(content, headers, HttpStatus.OK);
+    }
+}
