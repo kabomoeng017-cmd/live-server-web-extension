@@ -86,9 +86,7 @@ public class ApplicationDraftController {
 
     private boolean containsUnsupportedNestedKey(JsonNode node, boolean root) {
         if (node.isObject()) {
-            var fields = node.fields();
-            while (fields.hasNext()) {
-                var field = fields.next();
+            for (var field : node.properties()) {
                 if (!root && !NESTED_FIELDS.contains(field.getKey())) return true;
                 if (containsUnsupportedNestedKey(field.getValue(), false)) return true;
             }
@@ -100,9 +98,7 @@ public class ApplicationDraftController {
 
     private boolean containsSensitiveKey(JsonNode node) {
         if (node.isObject()) {
-            var fields = node.fields();
-            while (fields.hasNext()) {
-                var field = fields.next();
+            for (var field : node.properties()) {
                 String normalized = field.getKey().replaceAll("[^A-Za-z]", "").toLowerCase();
                 if (SENSITIVE_KEYS.stream().anyMatch(normalized::contains) || containsSensitiveKey(field.getValue())) return true;
             }
