@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Nav from "@/components/Nav";
 import RoleGate from "@/components/RoleGate";
 import { api } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 
 type InstitutionRecord = {
   code: string;
@@ -17,6 +18,7 @@ type InstitutionRecord = {
 };
 
 function InstitutionRegistryContent() {
+  const { session } = useAuth();
   const [items, setItems] = useState<InstitutionRecord[]>([]);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -104,7 +106,7 @@ function InstitutionRegistryContent() {
           <td>
             {item.status === "PENDING" ? <div>
               <label>Official source reference<input value={sourceReferences[item.code] || ""} onChange={e => setSourceReferences(current => ({...current,[item.code]:e.target.value}))} minLength={5} maxLength={180} aria-label={`Official source reference for ${item.code}`}/></label>
-              <button className="btn primary" type="button" disabled={busy === item.code || (sourceReferences[item.code] || "").trim().length < 5 || item.createdBy === "admin.demo"} onClick={() => verify(item)}>{busy === item.code ? "Verifying…" : "Verify record"}</button>
+              <button className="btn primary" type="button" disabled={busy === item.code || (sourceReferences[item.code] || "").trim().length < 5 || item.createdBy === session?.username} onClick={() => verify(item)}>{busy === item.code ? "Verifying…" : "Verify record"}</button>
               <small className="muted" style={{display:"block",marginTop:6}}>The registering administrator cannot approve their own record.</small>
             </div> : item.status === "VERIFIED" ? <div>
               <small>Source: {item.verificationSource || "—"}<br/>Reference: {item.verificationReference || "—"}<br/>Verified by: {item.verifiedBy || "—"}</small>
