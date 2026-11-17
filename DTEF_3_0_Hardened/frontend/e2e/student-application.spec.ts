@@ -47,6 +47,33 @@ async function signInAsStudent(page: Page, verifyInvalidOtp = false) {
   await expect(page).toHaveURL(/\/student\/apply$/);
 }
 
+async function signInAsOfficer(page: Page) {
+  await page.goto("/login");
+  await page.getByLabel(/role/i).selectOption("OFFICER");
+  await page.getByLabel(/password/i).fill("DemoPass!2026");
+  await page.getByRole("button", { name: /continue to otp/i }).click();
+  await expect(page.locator('input[autocomplete="one-time-code"]')).toBeVisible();
+  const otp = await waitForDemoOtp("DEMO_LOGIN", "officer.demo");
+  await page.locator('input[autocomplete="one-time-code"]').fill(otp);
+  await page.getByRole("button", { name: /verify/i }).click();
+  await expect(page).toHaveURL(/\\/officer$/);
+}
+
+async function signInAsAdmin(page: Page, username: "admin.demo" | "admin.verifier") {
+  await page.goto("/login");
+  await page.getByLabel(/role/i).selectOption("ADMIN");
+  if (username === "admin.verifier") {
+    await page.getByLabel(/administrator account/i).selectOption("admin.verifier");
+  }
+  await page.getByLabel(/password/i).fill("DemoPass!2026");
+  await page.getByRole("button", { name: /continue to otp/i }).click();
+  await expect(page.locator('input[autocomplete="one-time-code"]')).toBeVisible();
+  const otp = await waitForDemoOtp("DEMO_LOGIN", username);
+  await page.locator('input[autocomplete="one-time-code"]').fill(otp);
+  await page.getByRole("button", { name: /verify/i }).click();
+  await expect(page).toHaveURL(/\\/admin\\/institutions$/);
+}
+
 function testPdf(name: string) {
   return {
     name,
@@ -160,4 +187,50 @@ test("rejects a spoofed PDF upload and recovers from an invalid login OTP", asyn
     buffer: Buffer.from("this is not a PDF", "ascii")
   });
   await expect(page.getByRole("alert").filter({ hasText: /file content does not match its declared type/i })).toBeVisible();
+});
+
+
+test("officer reviews application documents and records a permitted decision", async ({ page }) => {
+  await signInAsOfficer(page);
+  await expect(page.getByRole("heading", { name: /DTEF Officer Dashboard/i })).toBeVisible();
+  await page.getByRole("button", { name: /review DTEF-/i }).first().click();
+  await expect(page.getByRole("heading", { name: /DTEF-/i })).toBeVisible();
+  await expect(page.getByText("ADMISSION_LETTER", { exact: true })).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: /download document/i }).first().click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/admission_letter/);
+  await expect(page.getByRole("status").filter({ hasText: /Integrity check: SHA256_MATCH/ })).toBeVisible();
+
+  await page.getByLabel(/next status/i).selectOption("DOCUMENTS_VERIFIED");
+  await page.getByRole("button", { name: /save decision/i }).click();
+  await expect(page.locator(".badge").filter({ hasText: "DOCUMENTS_VERIFIED" }).first()).toBeVisible();
+  await expect(page.getByText(/APPLIED → DOCUMENTS_VERIFIED/)).toBeVisible();
+});
+
+test("institution registration uses independent administrator verification", async ({ page }) => {
+  const suffix = Date.now().toString().slice(-8);
+  const code = `PW-${suffix}`;
+  const name = `Playwright Institution ${suffix}`;
+
+  await signInAsAdmin(page, "admin.demo");
+  await page.getByLabel(/institution code/i).fill(code);
+  await page.getByLabel(/institution name/i).fill(name);
+  await page.getByRole("button", { name: /add pending institution/i }).click();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /verify record/i })).toBeDisabled();
+
+  await page.getByRole("button", { name: /sign out/i }).click();
+  await expect(page).toHaveURL(/\\/login$/);
+  await signInAsAdmin(page, "admin.verifier");
+
+  await page.getByLabel(`Official source reference for ${code}`).fill(`Official register reference ${suffix}`);
+  await page.getByRole("button", { name: /verify record/i }).click();
+  const row = page.locator("tr").filter({ hasText: code });
+  await expect(row.getByText("VERIFIED", { exact: true })).toBeVisible();
+
+  await page.getByLabel(`Suspension reason for ${code}`).fill("Test suspension after successful verification.");
+  await page.getByRole("button", { name: /suspend institution/i }).click();
+  await expect(row.getByText("SUSPENDED", { exact: true })).toBeVisible();
 });
