@@ -56,7 +56,7 @@ async function signInAsOfficer(page: Page) {
   const otp = await waitForDemoOtp("DEMO_LOGIN", "officer.demo");
   await page.locator('input[autocomplete="one-time-code"]').fill(otp);
   await page.getByRole("button", { name: /verify/i }).click();
-  await expect(page).toHaveURL(/\\/officer$/);
+  await expect(page).toHaveURL(/\/officer$/);
 }
 
 async function signInAsAdmin(page: Page, username: "admin.demo" | "admin.verifier") {
@@ -71,7 +71,7 @@ async function signInAsAdmin(page: Page, username: "admin.demo" | "admin.verifie
   const otp = await waitForDemoOtp("DEMO_LOGIN", username);
   await page.locator('input[autocomplete="one-time-code"]').fill(otp);
   await page.getByRole("button", { name: /verify/i }).click();
-  await expect(page).toHaveURL(/\\/admin\\/institutions$/);
+  await expect(page).toHaveURL(/\/admin\/institutions$/);
 }
 
 function testPdf(name: string) {
