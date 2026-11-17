@@ -1,0 +1,145 @@
+name: Authorized DTEF staging load test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: HTTPS staging API base URL, for example https://dtef-staging.example.org
+        required: true
+        type: string
+      allowed_host:
+        description: Staging hostname being requested; it must match the protected environment allow-list
+        required: true
+        type: string
+      token_mode:
+        description: Use a dedicated test JWT only when staging trusts it, or supply a short-lived IdP-issued token
+        required: true
+        default: 'test-jwt'
+        type: choice
+        options: ['test-jwt', 'preissued-bearer']
+      max_vus:
+        description: Maximum concurrent virtual users (progressive stages are included)
+        required: true
+        default: '100'
+        type: choice
+        options: ['100', '500', '1000', '2000', '5000', '10000']
+      written_authorization:
+        description: Confirm written authorization from the staging owner
+        required: true
+        default: false
+        type: boolean
+      confirm_test_jwt_trust:
+        description: Confirm isolated staging explicitly trusts the dedicated test JWT issuer and secret (test-jwt mode only)
+        required: true
+        default: false
+        type: boolean
+      high_scale_approved:
+        description: Confirm separate infrastructure approval for more than 1000 VUs
+        required: true
+        default: false
+        type: boolean
+      extreme_scale_approved:
+        description: Confirm separate high-capacity approval for more than 5000 VUs
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  staged-load-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: load-testing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate staging target and authorization
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          REQUESTED_HOST: ${{ inputs.allowed_host }}
+          APPROVED_HOST: ${{ vars.DTEF_LOAD_ALLOWED_HOST }}
+          AUTHORIZATION_REFERENCE: ${{ vars.DTEF_LOAD_AUTHORIZATION_REFERENCE }}
+          WRITTEN_AUTHORIZATION: ${{ inputs.written_authorization }}
+          TOKEN_MODE: ${{ inputs.token_mode }}
+          TEST_JWT_TRUSTED: ${{ inputs.confirm_test_jwt_trust }}
+          MAX_VUS: ${{ inputs.max_vus }}
+          HIGH_SCALE_APPROVED: ${{ inputs.high_scale_approved }}
+          EXTREME_SCALE_APPROVED: ${{ inputs.extreme_scale_approved }}
+        run: |
+          test "$WRITTEN_AUTHORIZATION" = "true" || { echo 'Written authorization is required.'; exit 1; }
+          test -n "$APPROVED_HOST" || { echo 'Configure DTEF_LOAD_ALLOWED_HOST in the protected load-testing environment.'; exit 1; }
+          test -n "$AUTHORIZATION_REFERENCE" || { echo 'Configure DTEF_LOAD_AUTHORIZATION_REFERENCE in the protected load-testing environment.'; exit 1; }
+          node --input-type=module <<'NODE'
+          const target = new URL(process.env.TARGET_URL);
+          const host = target.hostname.toLowerCase();
+          const blocked = new Set(['tef.gov.bw', 'www.tef.gov.bw', 'gov.bw', 'www.gov.bw']);
+          const max = Number(process.env.MAX_VUS);
+          if (target.protocol !== 'https:' || target.username || target.password || target.search || target.hash) throw new Error('Target must be a clean HTTPS staging URL.');
+          const approved = process.env.APPROVED_HOST?.trim().toLowerCase();
+          const requested = process.env.REQUESTED_HOST?.trim().toLowerCase();
+          if (!approved || requested !== approved || host !== approved) throw new Error('Target host and requested host must exactly match the protected DTEF_LOAD_ALLOWED_HOST environment variable.');
+          if (blocked.has(host)) throw new Error('Known live government hosts are blocked.');
+          if (process.env.TOKEN_MODE === 'test-jwt' && process.env.TEST_JWT_TRUSTED !== 'true') throw new Error('Test-JWT mode requires explicit confirmation that isolated staging trusts this dedicated issuer and secret.');
+          if (!Number.isInteger(max) || ![100, 500, 1000, 2000, 5000, 10000].includes(max)) throw new Error('Select one of the supported staged concurrency levels.');
+          if (max > 1000 && process.env.HIGH_SCALE_APPROVED !== 'true') throw new Error('More than 1000 VUs requires separate infrastructure approval.');
+          if (max > 5000 && process.env.EXTREME_SCALE_APPROVED !== 'true') throw new Error('More than 5000 VUs requires separate high-capacity approval.');
+          NODE
+          mkdir -p artifacts/load
+          printf 'Written authorization reference: %s\nApproved staging host: %s\nRequested maximum VUs: %s\n' "$AUTHORIZATION_REFERENCE" "$APPROVED_HOST" "$MAX_VUS" > artifacts/load/authorization.txt
+      - name: Generate token for a dedicated test JWT issuer
+        if: inputs.token_mode == 'test-jwt'
+        env:
+          JWT_SECRET_BASE64: ${{ secrets.DTEF_LOAD_JWT_SECRET }}
+          JWT_ISSUER: ${{ vars.DTEF_LOAD_JWT_ISSUER }}
+          DTEF_LOAD_SUBJECT: student.loadtest
+        run: |
+          test -n "$JWT_SECRET_BASE64" || { echo 'Configure DTEF_LOAD_JWT_SECRET in the load-testing environment.'; exit 1; }
+          test -n "$JWT_ISSUER" || { echo 'Configure DTEF_LOAD_JWT_ISSUER in the load-testing environment.'; exit 1; }
+          umask 077
+          node tests/load/generate-load-token.mjs > load-token.txt
+          chmod 600 load-token.txt
+      - name: Use a short-lived token issued by the staging identity provider
+        if: inputs.token_mode == 'preissued-bearer'
+        env:
+          DTEF_LOAD_BEARER_TOKEN: ${{ secrets.DTEF_LOAD_BEARER_TOKEN }}
+        run: |
+          test -n "$DTEF_LOAD_BEARER_TOKEN" || { echo 'Configure a short-lived DTEF_LOAD_BEARER_TOKEN in the load-testing environment.'; exit 1; }
+          umask 077
+          printf '%s' "$DTEF_LOAD_BEARER_TOKEN" > load-token.txt
+          chmod 600 load-token.txt
+      - name: Execute progressive k6 stages
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          MAX_VUS: ${{ inputs.max_vus }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/load
+          umask 077
+          K6_ENV_FILE="$RUNNER_TEMP/dtef-k6.env"
+          {
+            printf 'DTEF_BASE_URL=%s\n' "$TARGET_URL"
+            printf 'DTEF_TOKEN=%s\n' "$(cat load-token.txt)"
+            printf 'MAX_VUS=%s\n' "$MAX_VUS"
+          } > "$K6_ENV_FILE"
+          chmod 600 "$K6_ENV_FILE"
+          docker run --rm --network host \
+            --env-file "$K6_ENV_FILE" \
+            -v "$PWD:/work" -w /work \
+            grafana/k6:2.4.0 run \
+            --summary-export="/work/artifacts/load/dtef-load-summary.json" \
+            /work/tests/load/k6-dtef-staged.js
+      - name: Upload load-test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-staged-load-evidence
+          path: |
+            artifacts/load/
+          if-no-files-found: warn
+      - name: Remove short-lived token file
+        if: always()
+        run: rm -f load-token.txt "$RUNNER_TEMP/dtef-k6.env"

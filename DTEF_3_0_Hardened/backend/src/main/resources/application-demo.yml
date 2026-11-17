@@ -1,0 +1,12 @@
+spring:
+  config:
+    activate:
+      on-profile: demo
+security:
+  jwt:
+    issuer: ${JWT_ISSUER:dtef-local-demo}
+    secret-base64: ${JWT_SECRET_BASE64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+dtef:
+  cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  demo-password: ${DEMO_PASSWORD:DemoPass!2026}
+  demo-otp-log-enabled: ${DEMO_OTP_LOG_ENABLED:true}

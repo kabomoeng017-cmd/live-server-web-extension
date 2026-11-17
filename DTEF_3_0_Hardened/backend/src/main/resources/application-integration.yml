@@ -1,0 +1,8 @@
+spring:
+  config:
+    activate:
+      on-profile: integration
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false

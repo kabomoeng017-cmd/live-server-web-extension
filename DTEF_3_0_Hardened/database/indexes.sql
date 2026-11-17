@@ -1,0 +1,2 @@
+-- Indexes are managed by Flyway.
+-- See backend/src/main/resources/db/migration/V1__initial_schema.sql

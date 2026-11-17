@@ -1,0 +1,190 @@
+name: DTEF 3.0 build and verification
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dtef-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend-production-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  frontend-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high
+
+  backend-junit-and-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify Docker is available for mandatory Testcontainers tests
+        run: docker info
+      - name: Build backend and run complete JUnit/Testcontainers suite
+        run: mvn -B -ntp clean verify
+      - name: Confirm JUnit tests ran and infrastructure tests were not skipped
+        run: node ../tests/ci/assert-maven-reports.mjs target/surefire-reports
+      - name: Confirm production JAR was packaged
+        run: test -s target/dtef-3.0.0.jar
+      - name: Upload JUnit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-junit-test-results
+          path: |
+            backend/target/surefire-reports/
+            backend/target/dtef-3.0.0.jar
+          if-no-files-found: warn
+
+  backend-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Scan Maven dependency tree for known vulnerabilities
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiKey="$NVD_API_KEY"
+      - name: Upload Maven dependency audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-maven-dependency-audit
+          path: |
+            backend/target/dependency-check-report.html
+            backend/target/dependency-check-report.json
+          if-no-files-found: warn
+
+  browser-end-to-end:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [frontend-production-build, backend-junit-and-integration]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Start isolated DTEF demo stack
+        run: |
+          cp .env.example .env
+          docker compose down -v --remove-orphans || true
+          docker compose up -d --build
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null && curl -fsS http://127.0.0.1:8080/api/health >/dev/null; then exit 0; fi
+            sleep 5
+          done
+          docker compose ps
+          docker compose logs --no-color
+          exit 1
+      - name: Install browser test dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run full student submission browser journey
+        working-directory: frontend
+        env:
+          CI: 'true'
+        run: npm run test:e2e
+      - name: Upload Playwright report and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore
+      - name: Capture isolated stack diagnostics
+        if: always()
+        run: |
+          mkdir -p artifacts/compose
+          docker compose ps > artifacts/compose/ps.txt || true
+          docker compose logs --no-color > artifacts/compose/logs.txt || true
+      - name: Upload browser and stack evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-e2e-and-compose-evidence
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            artifacts/compose/
+          if-no-files-found: ignore
+      - name: Stop isolated demo stack
+        if: always()
+        run: docker compose down -v --remove-orphans
+
+  build-container-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [frontend-production-build, backend-junit-and-integration]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - run: docker compose config --quiet
+      - run: docker build -t dtef-backend:ci ./backend
+      - run: docker build --build-arg API_INTERNAL_BASE=http://backend:8080/api -t dtef-frontend:ci ./frontend
+
+  source-security-and-government-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run CI evidence and workflow safety regression tests
+        run: node --test tests/ci/*.test.mjs
+      - name: Run backend static security regression checks
+        run: node --test tests/smoke/static-backend-audit.mjs
+      - name: Run government integration simulator contracts
+        run: node --test tests/gov-sim/*.test.mjs

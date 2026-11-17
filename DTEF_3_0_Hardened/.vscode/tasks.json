@@ -1,0 +1,39 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "DTEF: Start local infrastructure",
+      "type": "shell",
+      "command": "docker compose up -d postgres redis rabbitmq",
+      "problemMatcher": []
+    },
+    {
+      "label": "DTEF: Run backend",
+      "type": "shell",
+      "command": "mvn spring-boot:run",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "DTEF: Run frontend",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "DTEF: Run frontend checks",
+      "type": "shell",
+      "command": "npm run typecheck && npm test && npm run build",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "DTEF: Run backend tests",
+      "type": "shell",
+      "command": "mvn clean verify",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": []
+    }
+  ]
+}

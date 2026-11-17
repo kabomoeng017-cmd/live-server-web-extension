@@ -1,0 +1,91 @@
+name: Refresh patched frontend dependencies
+
+on:
+  workflow_dispatch:
+    inputs:
+      next_version:
+        description: Exact stable Next.js version to validate
+        required: true
+        default: '16.4.6'
+        type: string
+      react_version:
+        description: Exact stable React and React DOM version to validate
+        required: true
+        default: '19.3.1'
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dtef-frontend-dependency-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Update direct framework dependencies and regenerate lockfile
+        working-directory: frontend
+        env:
+          NEXT_VERSION: ${{ inputs.next_version }}
+          REACT_VERSION: ${{ inputs.react_version }}
+        run: |
+          npm install --save-exact "next@${NEXT_VERSION}" "react@${REACT_VERSION}" "react-dom@${REACT_VERSION}"
+          npm install --save-dev-exact @types/react@19.3.0 @types/react-dom@19.3.0
+          npm audit fix
+      - name: Verify reproducible clean install
+        working-directory: frontend
+        run: npm ci
+      - name: Enforce dependency vulnerability gate
+        working-directory: frontend
+        run: npm audit --audit-level=high
+      - name: Run frontend typecheck and unit/regression tests
+        working-directory: frontend
+        run: |
+          npm run typecheck
+          npm test
+      - name: Run production build
+        working-directory: frontend
+        run: npm run build
+      - name: Upload generated lockfile and build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-frontend-dependency-refresh
+          path: |
+            frontend/package.json
+            frontend/package-lock.json
+            frontend/.next/BUILD_ID
+          if-no-files-found: ignore
+      - name: Create dependency-update pull request only after all gates pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_VERSION: ${{ inputs.next_version }}
+          REACT_VERSION: ${{ inputs.react_version }}
+          BASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/package.json frontend/package-lock.json
+          if git diff --cached --quiet; then
+            echo 'No dependency or lockfile changes were generated.'
+            exit 0
+          fi
+          BRANCH="automation/frontend-dependencies-${GITHUB_RUN_ID}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(frontend): refresh Next.js and React dependencies"
+          git push --set-upstream origin "$BRANCH"
+          gh pr create \
+            --title "chore(frontend): validate Next.js ${NEXT_VERSION} and React ${REACT_VERSION}" \
+            --base "$BASE_BRANCH" \
+            --head "$BRANCH" \
+            --body "Automated frontend framework and lockfile refresh. This PR is created only after npm ci, npm audit, TypeScript checks, frontend tests and the production build pass in the workflow. Review the generated lockfile and the Playwright CI result before merging."

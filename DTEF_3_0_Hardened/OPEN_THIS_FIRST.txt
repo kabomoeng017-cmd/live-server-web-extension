@@ -1,0 +1,54 @@
+DTEF 3.0 — MILESTONE 4.2 RUNTIME READINESS PACKAGE
+
+START HERE
+1. Extract the ZIP archive.
+2. Open dtef-3.0.code-workspace in Visual Studio Code.
+3. Read README.md, docs/GITHUB_REPOSITORY_SETUP.md and docs/MILESTONE_4_TEST_PLAN.md.
+4. Run ./scripts/run-local-regression.sh for the local Node-based regression suite.
+5. Copy .env.example to .env for the local demonstration.
+6. Run: docker compose up --build -d
+7. Open: http://localhost:3000
+
+WHAT THIS MILESTONE ADDS
+- JUnit/Testcontainers integration coverage for PostgreSQL, Redis and RabbitMQ.
+- Playwright browser tests for the student sign-in, identity, document-upload and application-submission journey.
+- CI jobs for frontend/backend production builds, JUnit, Playwright, container builds, npm audit, OWASP Maven dependency scanning and simulator contracts.
+- OWASP ZAP passive baseline workflow and a manual, allow-listed active scan workflow for authorized staging only.
+- Staged k6 load profile with safe target/authorization gates, 100-VU default, progressive stages and JSON summaries.
+- Synthetic government-provider simulator for Omang, institution registry, social welfare, FNBB and notifications, with stricter validation and idempotency conflict tests.
+- CI now verifies JUnit report counts and fails if PostgreSQL/Redis/RabbitMQ Testcontainers tests are skipped.
+- Manual frontend dependency-refresh workflow that regenerates the npm lockfile and opens a PR only after audit, typecheck, unit tests and production build pass.
+- Manual, allow-listed load-test workflow for approved HTTPS staging environments; target host must match a protected environment variable and test-JWT use requires explicit trust confirmation.
+- Backend container image build compiles test sources without running Testcontainers inside Docker build; the dedicated CI job runs the real integration suite.
+- CI evidence verifier now has regression tests for missing, skipped, malformed and failed JUnit reports.
+
+CHECKS EXECUTED DURING PACKAGE PREPARATION
+- 8 frontend unit/regression tests passed.
+- 14 backend static security/configuration tests passed.
+- 15 government simulator contract tests passed.
+- 9 CI evidence/workflow regression tests passed (46 executed tests total).
+- TypeScript/TSX syntax parsed for 24 files; JavaScript and shell syntax checks passed.
+- GitHub workflow, Compose and Kubernetes YAML; package JSON; TypeScript config and Maven XML parsed successfully.
+- Load-test safety checks correctly rejected unapproved remote targets, missing remote identity tokens and high-concurrency runs without approval.
+
+NOT YET EXECUTED — DO NOT CLAIM AS PASSED
+- Full frontend production typecheck/build.
+- The frontend framework dependency refresh; the committed lockfile still resolves Next.js 15.2.4 and React 19.0.0. The new workflow must regenerate the lockfile and pass all frontend gates before merge.
+- The backend Spring Boot 3.4.3 parent is also a release blocker; follow the controlled Boot 4.1.x migration plan in docs/DEPENDENCY_AUDIT.md.
+- Full Maven/JUnit suite, including Testcontainers integration tests.
+- Playwright browser execution and the real application/document end-to-end flow.
+- Docker Compose runtime and container image builds.
+- OWASP ZAP scans or independent manual penetration testing.
+- k6 load tests at 100, 500, 1,000 or higher concurrency.
+- Live government provider integration; only a synthetic simulator is included.
+
+The current build environment has no Maven, Docker or k6 executable. An npm install attempt was blocked by registry DNS `EAI_AGAIN`; offline install also reported missing cached packages. GitHub Actions workflows are prepared but have not been run: this folder is not yet pushed to a GitHub repository and no authenticated GitHub connection is active. Follow docs/GITHUB_REPOSITORY_SETUP.md to create the remote repository, push the source and configure protected environments. Review docs/MILESTONE_4_TEST_RESULTS.md and replace PENDING statuses only with actual CI/staging evidence.
+
+LOCAL DEMO ONLY
+- Select a demo role on the login page.
+- Demo usernames and password are in README.md.
+- OTP is random; view it only in local backend logs: docker compose logs -f backend.
+- Do not enter real Omang, bank, welfare or student personal information.
+
+PRODUCTION WARNING
+This is a hardened prototype and validation workspace, not an approved production government service. Official Omang, OIDC/MFA, FNBB, institution registry, social welfare, SMS/email/WhatsApp, OCR/AI, malware scanning and encrypted object storage integrations still require authorized providers and approvals. See docs/PRODUCTION_READINESS.md.

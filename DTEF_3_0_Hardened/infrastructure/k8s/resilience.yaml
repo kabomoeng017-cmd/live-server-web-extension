@@ -1,0 +1,25 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: dtef-backend-pdb, namespace: dtef }
+spec:
+  minAvailable: 2
+  selector: { matchLabels: { app: dtef-backend } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: dtef-frontend-pdb, namespace: dtef }
+spec:
+  minAvailable: 2
+  selector: { matchLabels: { app: dtef-frontend } }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: dtef-backend-ingress, namespace: dtef }
+spec:
+  podSelector: { matchLabels: { app: dtef-backend } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: dtef-frontend } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ingress-nginx } }
+      ports: [{ protocol: TCP, port: 8080 }]

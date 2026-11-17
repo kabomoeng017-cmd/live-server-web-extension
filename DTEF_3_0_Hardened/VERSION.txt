@@ -1,0 +1,4 @@
+DTEF portal application version: 3.0.0
+Milestone: 4.2 — container-build correction, protected load-test authorization, JUnit evidence regression tests and GitHub execution preparation
+Package status: local static and simulator checks executed; full runtime/release gates remain pending external CI and authorized staging
+Source basis: supplied DTEF 2.0 Advanced Portal source package

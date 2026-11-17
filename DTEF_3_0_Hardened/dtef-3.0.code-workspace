@@ -1,0 +1,14 @@
+{
+  "folders": [
+    { "name": "DTEF Frontend", "path": "frontend" },
+    { "name": "DTEF Backend", "path": "backend" },
+    { "name": "Database & Infrastructure", "path": "infrastructure" },
+    { "name": "Documentation & Tests", "path": "docs" }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+    "files.eol": "\n",
+    "java.configuration.updateBuildConfiguration": "automatic"
+  }
+}

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dtef
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dtef-uploads
+  namespace: dtef
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests: { storage: 50Gi }
+  storageClassName: REPLACE_WITH_ENCRYPTED_RWX_STORAGE_CLASS

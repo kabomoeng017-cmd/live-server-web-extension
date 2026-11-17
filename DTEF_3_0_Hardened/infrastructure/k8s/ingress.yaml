@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dtef-ingress
+  namespace: dtef
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "12m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [portal.example.gov.bw]
+      secretName: dtef-portal-tls
+  rules:
+    - host: portal.example.gov.bw
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend: { service: { name: dtef-backend, port: { number: 8080 } } }
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: dtef-frontend, port: { number: 3000 } } }
