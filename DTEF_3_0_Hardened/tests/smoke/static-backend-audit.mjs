@@ -158,6 +158,7 @@ test('backend uses patched Spring Boot 4.1.2 modular starters and Jackson 3', as
   assert.match(pom, /spring-boot-starter-security-oauth2-resource-server/);
   assert.match(pom, /spring-boot-starter-flyway/);
   assert.match(pom, /spring-boot-starter-webmvc-test/);
+  assert.match(pom, /spring-boot-restclient/);
   assert.match(pom, /spring-boot-resttestclient/);
   assert.doesNotMatch(pom, /spring-boot-starter-web<\/artifactId>/);
   assert.doesNotMatch(security + draft, /com\.fasterxml\.jackson\.databind/);
