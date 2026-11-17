@@ -124,6 +124,12 @@ class DtefInfrastructureIntegrationTest {
             "otp", submitOtp
         );
 
+        Map<String, Object> unlistedRequest = new java.util.HashMap<>(request);
+        unlistedRequest.put("institution", "Unlisted College");
+        ResponseEntity<Map> unlisted = http.exchange("/api/applications", HttpMethod.POST,
+            new HttpEntity<>(unlistedRequest, jsonBearer(token)), Map.class);
+        assertThat(unlisted.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+
         Map<String, Object> submitted = postJson("/api/applications", token, request, HttpStatus.OK);
         String reference = (String) submitted.get("reference");
         assertThat(reference).matches("DTEF-\\d{4}-\\d{8}");
@@ -218,6 +224,61 @@ class DtefInfrastructureIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+
+
+    @Test
+    void institutionRegistrationRequiresIndependentAdminVerificationAndCanBeSuspended() {
+        String suffix = java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String code = "IT-" + suffix;
+        String name = "Integration Test Institution " + suffix;
+        String creatorToken = loginAsAdmin("admin.demo");
+
+        ResponseEntity<Map> registered = http.exchange("/api/institutions/admin/records", HttpMethod.POST,
+            new HttpEntity<>(Map.of("code", code, "name", name), jsonBearer(creatorToken)), Map.class);
+        assertThat(registered.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(registered.getBody()).containsEntry("status", "PENDING");
+
+        ResponseEntity<Map> selfApproval = http.exchange("/api/institutions/admin/records/" + code + "/verify", HttpMethod.POST,
+            new HttpEntity<>(Map.of("sourceReference", "Official registry reference " + suffix), jsonBearer(creatorToken)), Map.class);
+        assertThat(selfApproval.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        String verifierToken = loginAsAdmin("admin.verifier");
+        ResponseEntity<Map> verified = http.exchange("/api/institutions/admin/records/" + code + "/verify", HttpMethod.POST,
+            new HttpEntity<>(Map.of("sourceReference", "Official registry reference " + suffix), jsonBearer(verifierToken)), Map.class);
+        assertThat(verified.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(verified.getBody()).containsEntry("status", "VERIFIED").containsEntry("verifiedBy", "admin.verifier");
+
+        String studentToken = loginAsStudent();
+        ResponseEntity<java.util.List> catalogue = http.exchange("/api/institutions/catalogue", HttpMethod.GET,
+            new HttpEntity<>(bearer(studentToken)), java.util.List.class);
+        assertThat(catalogue.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(catalogue.getBody()).anySatisfy(item -> assertThat(((Map<?, ?>) item).get("name")).isEqualTo(name));
+
+        ResponseEntity<Map> adminRecords = http.exchange("/api/institutions/admin/records", HttpMethod.GET,
+            new HttpEntity<>(bearer(studentToken)), Map.class);
+        assertThat(adminRecords.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> suspended = http.exchange("/api/institutions/admin/records/" + code + "/suspend", HttpMethod.POST,
+            new HttpEntity<>(Map.of("reason", "Test record suspended after integration verification."), jsonBearer(verifierToken)), Map.class);
+        assertThat(suspended.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(suspended.getBody()).containsEntry("status", "SUSPENDED");
+
+        ResponseEntity<java.util.List> catalogueAfterSuspension = http.exchange("/api/institutions/catalogue", HttpMethod.GET,
+            new HttpEntity<>(bearer(studentToken)), java.util.List.class);
+        assertThat(catalogueAfterSuspension.getBody()).noneSatisfy(item ->
+            assertThat(((Map<?, ?>) item).get("name")).isEqualTo(name));
+    }
+
+    private String loginAsAdmin(String username) {
+        otpDelivery.clear();
+        Map<?, ?> challenge = http.postForObject("/api/auth/demo-login", Map.of(
+            "username", username, "password", "DemoPass!2026", "role", "ADMIN"), Map.class);
+        String challengeId = (String) challenge.get("challengeId");
+        String loginOtp = otpDelivery.latest("DEMO_LOGIN", username);
+        Map<?, ?> result = http.postForObject("/api/auth/verify-demo-otp",
+            Map.of("challengeId", challengeId, "otp", loginOtp), Map.class);
+        return (String) result.get("accessToken");
+    }
 
     private String loginAsOfficer() {
         otpDelivery.clear();

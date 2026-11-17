@@ -213,3 +213,16 @@ test('officer document download verifies SHA-256 and file size before serving by
   assert.match(officer, /X-DTEF-Integrity-Check/);
   assert.match(testFile, /rejectsDocumentWhoseStoredBytesChangedAfterUpload/);
 });
+
+
+test('institution verification requires a second administrator and keeps registry metadata private', async () => {
+  const service = await read('backend/src/main/java/bw/gov/dtef/institution/InstitutionService.java');
+  const controller = await read('backend/src/main/java/bw/gov/dtef/institution/InstitutionController.java');
+  const auth = await read('backend/src/main/java/bw/gov/dtef/auth/DemoAuthController.java');
+  const integration = await read('backend/src/test/java/bw/gov/dtef/integration/DtefInfrastructureIntegrationTest.java');
+  assert.match(service, /item\.getCreatedBy\(\)\.equals\(actor\)/);
+  assert.match(controller, /CatalogueInstitutionView\(String code, String name, String status\)/);
+  assert.match(controller, /requestReference/);
+  assert.match(auth, /admin\.verifier/);
+  assert.match(integration, /institutionRegistrationRequiresIndependentAdminVerificationAndCanBeSuspended/);
+});
