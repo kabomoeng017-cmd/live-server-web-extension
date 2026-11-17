@@ -1,0 +1,120 @@
+name: DTEF frontend security dependency refresh
+
+on:
+  push:
+    branches:
+      - automation/dtef-next16-security-upgrade
+    paths:
+      - DTEF_3_0_Hardened/frontend/package.json
+      - .github/workflows/dtef-frontend-dependency-refresh.yml
+  workflow_dispatch:
+    inputs:
+      next_version:
+        description: Exact stable Next.js version
+        required: true
+        default: "16.4.6"
+        type: string
+      react_version:
+        description: Exact stable React and React DOM version
+        required: true
+        default: "19.3.1"
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: dtef-frontend-security-refresh-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  refresh-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: DTEF_3_0_Hardened/frontend/package-lock.json
+      - name: Configure resilient npm downloads
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+      - name: Resolve exact framework versions and regenerate lockfile
+        working-directory: DTEF_3_0_Hardened/frontend
+        env:
+          NEXT_VERSION: ${{ github.event.inputs.next_version || '16.4.6' }}
+          REACT_VERSION: ${{ github.event.inputs.react_version || '19.3.1' }}
+        run: |
+          npm install --save-exact "next@${NEXT_VERSION}" "react@${REACT_VERSION}" "react-dom@${REACT_VERSION}" "sharp@0.35.5"
+          npm install --save-dev-exact @types/react@19.3.0 @types/react-dom@19.3.0
+      - name: Verify clean reproducible install
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm ci
+      - name: Verify patched runtime versions
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: |
+          npm ls next react react-dom sharp
+          node -e "const p=require('./package-lock.json'); const expected={next:'16.4.6',react:'19.3.1','react-dom':'19.3.1',sharp:'0.35.5'}; for (const [name,want] of Object.entries(expected)) { const got=p.packages['node_modules/'+name]?.version; if (got!==want) throw new Error(name+' expected '+want+' but lockfile has '+got); console.log(name+'='+got); }"
+      - name: Enforce high-severity npm advisory gate
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm audit --audit-level=high
+      - name: TypeScript check
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm run typecheck
+      - name: Frontend unit and regression tests
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm test
+      - name: Next.js production build
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm run build
+      - name: Commit regenerated lockfile to the upgrade branch
+        if: github.ref_name == 'automation/dtef-next16-security-upgrade'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add DTEF_3_0_Hardened/frontend/package.json DTEF_3_0_Hardened/frontend/package-lock.json
+          if git diff --cached --quiet; then
+            echo "The generated lockfile is already committed."
+          else
+            git commit -m "chore(dtef): regenerate patched frontend lockfile"
+            git push origin HEAD:refs/heads/automation/dtef-next16-security-upgrade
+          fi
+      - name: Apply validated frontend upgrade to DTEF branch and start full CI
+        if: github.ref_name == 'automation/dtef-next16-security-upgrade'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: dtef-3.0-milestone-4.2
+        run: |
+          set -euo pipefail
+          git fetch origin "$TARGET_BRANCH"
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          git checkout automation/dtef-next16-security-upgrade -- \
+            DTEF_3_0_Hardened/frontend/package.json \
+            DTEF_3_0_Hardened/frontend/package-lock.json \
+            .github/workflows/dtef-frontend-dependency-refresh.yml
+          git add \
+            DTEF_3_0_Hardened/frontend/package.json \
+            DTEF_3_0_Hardened/frontend/package-lock.json \
+            .github/workflows/dtef-frontend-dependency-refresh.yml
+          git diff --cached --check
+          git commit -m "chore(dtef): upgrade patched Next.js and React dependencies"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          gh workflow run dtef-ci.yml --repo "$GITHUB_REPOSITORY" --ref "$TARGET_BRANCH"
+      - name: Upload generated lockfile and build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-next16-dependency-refresh
+          path: |
+            DTEF_3_0_Hardened/frontend/package.json
+            DTEF_3_0_Hardened/frontend/package-lock.json
+            DTEF_3_0_Hardened/frontend/.next/BUILD_ID
+          if-no-files-found: warn
+          retention-days: 7
