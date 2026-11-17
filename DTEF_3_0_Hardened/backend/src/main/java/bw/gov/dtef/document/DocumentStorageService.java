@@ -60,7 +60,9 @@ public class DocumentStorageService {
         if (bytes.length != expectedSize)
             throw new IntegrityException("Stored document size does not match its recorded metadata.");
         byte[] expected = HexFormat.of().parseHex(expectedSha256);
-        byte[] actual = MessageDigest.getInstance("SHA-256").digest(bytes);
+        byte[] actual;
+        try { actual = MessageDigest.getInstance("SHA-256").digest(bytes); }
+        catch (java.security.NoSuchAlgorithmException ex) { throw new IllegalStateException("SHA-256 is unavailable.", ex); }
         if (!MessageDigest.isEqual(expected, actual))
             throw new IntegrityException("Stored document fingerprint does not match its recorded metadata.");
         return bytes;
