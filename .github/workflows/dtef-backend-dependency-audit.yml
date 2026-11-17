@@ -36,23 +36,38 @@ jobs:
           key: dtef-owasp-data-${{ runner.os }}-${{ hashFiles('DTEF_3_0_Hardened/backend/pom.xml') }}
           restore-keys: |
             dtef-owasp-data-${{ runner.os }}-
-      - name: Scan Maven dependencies
-        working-directory: DTEF_3_0_Hardened
+      - name: Check whether an NVD API key is configured
+        id: nvd-key
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           if [[ -n "$NVD_API_KEY" ]]; then
-            NVD_ARGS=(-DnvdApiKey="$NVD_API_KEY")
+            echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::NVD_API_KEY is not configured; the scan will use the public NVD feed and may take longer."
-            NVD_ARGS=()
+            echo "available=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Scan Maven dependencies with NVD API key
+        if: steps.nvd-key.outputs.available == 'true'
+        working-directory: DTEF_3_0_Hardened
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
           mvn -B -ntp -f backend/pom.xml \
             org.owasp:dependency-check-maven:13.0.0:check \
             -DfailBuildOnCVSS=11 \
             -Dformat=ALL \
             -DdataDirectory="${{ runner.temp }}/dependency-check-data" \
-            "${NVD_ARGS[@]}"
+            -DnvdApiKey="$NVD_API_KEY"
+      - name: Scan Maven dependencies without NVD API key
+        if: steps.nvd-key.outputs.available != 'true'
+        working-directory: DTEF_3_0_Hardened
+        run: |
+          echo "::warning::NVD_API_KEY is not configured; this first vulnerability database download may be slow."
+          mvn -B -ntp -f backend/pom.xml \
+            org.owasp:dependency-check-maven:13.0.0:check \
+            -DfailBuildOnCVSS=11 \
+            -Dformat=ALL \
+            -DdataDirectory="${{ runner.temp }}/dependency-check-data"
       - name: Upload dependency audit report
         if: always()
         uses: actions/upload-artifact@v4
