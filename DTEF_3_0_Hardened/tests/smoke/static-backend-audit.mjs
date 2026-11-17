@@ -199,3 +199,16 @@ test('student applications require a verified institution catalogue entry', asyn
   assert.match(migration, /DEMO_VERIFIED/);
   assert.match(service, /MANUAL_OFFICIAL_CONFIRMATION/);
 });
+
+
+test('officer document download verifies SHA-256 and file size before serving bytes', async () => {
+  const storage = await read('backend/src/main/java/bw/gov/dtef/document/DocumentStorageService.java');
+  const officer = await read('backend/src/main/java/bw/gov/dtef/officer/OfficerDemoDocumentController.java');
+  const testFile = await read('backend/src/test/java/bw/gov/dtef/document/DocumentStorageServiceTest.java');
+  assert.match(storage, /readVerified/);
+  assert.match(storage, /MessageDigest\.isEqual/);
+  assert.match(officer, /storage\.readVerified/);
+  assert.match(officer, /DOCUMENT_INTEGRITY_CHECK_FAILED/);
+  assert.match(officer, /X-DTEF-Integrity-Check/);
+  assert.match(testFile, /rejectsDocumentWhoseStoredBytesChangedAfterUpload/);
+});

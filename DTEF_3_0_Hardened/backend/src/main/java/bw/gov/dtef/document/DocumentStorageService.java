@@ -53,6 +53,23 @@ public class DocumentStorageService {
         return Files.readAllBytes(target);
     }
 
+    public byte[] readVerified(String storageKey, String expectedSha256, long expectedSize) throws IOException {
+        if (expectedSha256 == null || !expectedSha256.matches("[0-9a-fA-F]{64}") || expectedSize < 1 || expectedSize > MAX_BYTES)
+            throw new IntegrityException("Stored document metadata is invalid.");
+        byte[] bytes = read(storageKey);
+        if (bytes.length != expectedSize)
+            throw new IntegrityException("Stored document size does not match its recorded metadata.");
+        byte[] expected = HexFormat.of().parseHex(expectedSha256);
+        byte[] actual = MessageDigest.getInstance("SHA-256").digest(bytes);
+        if (!MessageDigest.isEqual(expected, actual))
+            throw new IntegrityException("Stored document fingerprint does not match its recorded metadata.");
+        return bytes;
+    }
+
+    public static final class IntegrityException extends IOException {
+        public IntegrityException(String message) { super(message); }
+    }
+
     public void delete(String storageKey) {
         if (storageKey == null || !storageKey.matches("[0-9a-fA-F-]{36}")) return;
         try { Files.deleteIfExists(root.resolve(storageKey).normalize()); }

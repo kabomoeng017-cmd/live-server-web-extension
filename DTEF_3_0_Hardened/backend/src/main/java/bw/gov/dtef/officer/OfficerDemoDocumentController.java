@@ -49,10 +49,14 @@ public class OfficerDemoDocumentController {
 
         byte[] content;
         try {
-            content = storage.read(document.getStorageKey());
+            content = storage.readVerified(document.getStorageKey(), document.getSha256(), document.getSize());
+        } catch (DocumentStorageService.IntegrityException ex) {
+            audit.record(jwt.getSubject(), "DOCUMENT_INTEGRITY_CHECK_FAILED", "DOCUMENT", documentId.toString());
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Stored document failed its integrity check.");
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Stored document was not found.");
         }
+        audit.record(jwt.getSubject(), "DOCUMENT_INTEGRITY_VERIFIED", "DOCUMENT", documentId.toString());
         audit.record(jwt.getSubject(), "OFFICER_DOCUMENT_ACCESSED", "DOCUMENT", documentId.toString());
 
         HttpHeaders headers = new HttpHeaders();
@@ -62,6 +66,7 @@ public class OfficerDemoDocumentController {
         headers.setCacheControl(CacheControl.noStore());
         headers.set("X-Content-Type-Options", "nosniff");
         headers.set("X-DTEF-Document-Mode", "DEMO_UNSCANNED");
+        headers.set("X-DTEF-Integrity-Check", "SHA256_MATCH");
         return new ResponseEntity<>(content, headers, HttpStatus.OK);
     }
 }

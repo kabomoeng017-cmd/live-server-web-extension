@@ -27,4 +27,29 @@ class DocumentStorageServiceTest {
         var file = new MockMultipartFile("file", "large.pdf", "application/pdf", new byte[10 * 1024 * 1024 + 1]);
         assertThrows(IllegalArgumentException.class, () -> service.store(file));
     }
+
+    @Test void verifiesStoredDocumentFingerprintBeforeOfficerRead() throws Exception {
+        DocumentStorageService service = new DocumentStorageService(temp.toString());
+        byte[] pdf = "%PDF-1.4\\noriginal".getBytes();
+        var stored = service.store(new MockMultipartFile("file", "admission.pdf", "application/pdf", pdf));
+        assertArrayEquals(pdf, service.readVerified(stored.storageKey(), stored.sha256(), stored.size()));
+    }
+
+    @Test void rejectsDocumentWhoseStoredBytesChangedAfterUpload() throws Exception {
+        DocumentStorageService service = new DocumentStorageService(temp.toString());
+        byte[] pdf = "%PDF-1.4\\noriginal".getBytes();
+        var stored = service.store(new MockMultipartFile("file", "admission.pdf", "application/pdf", pdf));
+        java.nio.file.Files.write(temp.resolve(stored.storageKey()), "%PDF-1.4\\ntampered".getBytes());
+        assertThrows(DocumentStorageService.IntegrityException.class,
+            () -> service.readVerified(stored.storageKey(), stored.sha256(), stored.size()));
+    }
+
+    @Test void rejectsDocumentWhenRecordedSizeDoesNotMatch() throws Exception {
+        DocumentStorageService service = new DocumentStorageService(temp.toString());
+        byte[] pdf = "%PDF-1.4\\noriginal".getBytes();
+        var stored = service.store(new MockMultipartFile("file", "admission.pdf", "application/pdf", pdf));
+        assertThrows(DocumentStorageService.IntegrityException.class,
+            () -> service.readVerified(stored.storageKey(), stored.sha256(), stored.size() + 1));
+    }
+
 }
