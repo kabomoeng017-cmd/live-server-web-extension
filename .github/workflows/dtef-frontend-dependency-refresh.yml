@@ -57,7 +57,7 @@ jobs:
         working-directory: DTEF_3_0_Hardened/frontend
         run: |
           npm ls next react react-dom sharp
-          node -e "const expected={next:'16.4.6',react:'19.3.1','react-dom':'19.3.1',sharp:'0.35.5'}; for (const [name,want] of Object.entries(expected)) { const got=require(name+'/package.json').version; if (got!==want) throw new Error(name+' expected '+want+' but found '+got); console.log(name+'='+got); }"
+          node -e "const p=require('./package-lock.json'); const expected={next:'16.4.6',react:'19.3.1','react-dom':'19.3.1',sharp:'0.35.5'}; for (const [name,want] of Object.entries(expected)) { const got=p.packages['node_modules/'+name]?.version; if (got!==want) throw new Error(name+' expected '+want+' but lockfile has '+got); console.log(name+'='+got); }"
       - name: Enforce high-severity npm advisory gate
         working-directory: DTEF_3_0_Hardened/frontend
         run: npm audit --audit-level=high
