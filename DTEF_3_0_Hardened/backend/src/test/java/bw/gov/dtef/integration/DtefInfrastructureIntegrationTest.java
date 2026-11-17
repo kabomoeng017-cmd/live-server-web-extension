@@ -139,6 +139,29 @@ class DtefInfrastructureIntegrationTest {
         assertThat(history.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(history.getBody()).hasSize(1);
 
+
+        String officerToken = loginAsOfficer();
+        ResponseEntity<Map> officerDetail = http.exchange("/api/officer/applications/" + reference, HttpMethod.GET,
+            new HttpEntity<>(bearer(officerToken)), Map.class);
+        assertThat(officerDetail.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(officerDetail.getBody().get("application")).isInstanceOf(Map.class);
+        java.util.List<?> officerDocuments = (java.util.List<?>) officerDetail.getBody().get("documents");
+        assertThat(officerDocuments).hasSize(3);
+        assertThat(((Map<?, ?>) officerDocuments.get(0)).get("status")).isEqualTo("DEMO_ACCEPTED");
+
+        String admissionDocumentId = admission.get("documentId").toString();
+        String officerDocumentPath = "/api/officer/applications/" + reference + "/documents/" + admissionDocumentId;
+        ResponseEntity<byte[]> officerDownload = http.exchange(officerDocumentPath, HttpMethod.GET,
+            new HttpEntity<>(bearer(officerToken)), byte[].class);
+        assertThat(officerDownload.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(officerDownload.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
+        assertThat(officerDownload.getHeaders().getFirst("X-DTEF-Document-Mode")).isEqualTo("DEMO_UNSCANNED");
+        assertThat(new String(officerDownload.getBody(), StandardCharsets.US_ASCII)).startsWith("%PDF-1.4");
+
+        ResponseEntity<byte[]> studentDownload = http.exchange(officerDocumentPath, HttpMethod.GET,
+            new HttpEntity<>(bearer(token)), byte[].class);
+        assertThat(studentDownload.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
         ResponseEntity<Map> replay = http.exchange("/api/applications", HttpMethod.POST,
             new HttpEntity<>(request, jsonBearer(token)), Map.class);
         assertThat(replay.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
@@ -184,6 +207,17 @@ class DtefInfrastructureIntegrationTest {
         ResponseEntity<Map> response = http.exchange("/api/notifications/send", HttpMethod.POST,
             new HttpEntity<>(Map.of("recipientSubject", "student.demo", "templateId", "TEST_NOTICE", "channel", "IN_APP"), jsonBearer(token)), Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+
+    private String loginAsOfficer() {
+        otpDelivery.clear();
+        Map<?, ?> challenge = http.postForObject("/api/auth/demo-login", Map.of(
+            "username", "officer.demo", "password", "DemoPass!2026", "role", "OFFICER"), Map.class);
+        String challengeId = (String) challenge.get("challengeId");
+        String loginOtp = otpDelivery.latest("DEMO_LOGIN", "officer.demo");
+        Map<?, ?> result = http.postForObject("/api/auth/verify-demo-otp", Map.of("challengeId", challengeId, "otp", loginOtp), Map.class);
+        return (String) result.get("accessToken");
     }
 
     private String loginAsStudent() {

@@ -166,3 +166,19 @@ test('backend uses patched Spring Boot 4.1.2 modular starters and Jackson 3', as
   assert.match(queue, /JacksonJsonMessageConverter/);
   assert.doesNotMatch(queue, /Jackson2JsonMessageConverter/);
 });
+
+
+test('officer document review is demo-only and production access fails closed', async () => {
+  const demo = await read('backend/src/main/java/bw/gov/dtef/officer/OfficerDemoDocumentController.java');
+  const unavailable = await read('backend/src/main/java/bw/gov/dtef/officer/OfficerDocumentUnavailableController.java');
+  const storage = await read('backend/src/main/java/bw/gov/dtef/document/DocumentStorageService.java');
+  const security = await read('backend/src/main/java/bw/gov/dtef/config/SecurityConfig.java');
+  assert.match(demo, /@Profile\("demo"\)/);
+  assert.match(demo, /OFFICER_DOCUMENT_ACCESSED/);
+  assert.match(demo, /DEMO_UNSCANNED/);
+  assert.match(demo, /existsByApplicationReferenceAndDocumentId/);
+  assert.match(unavailable, /@Profile\("!demo"\)/);
+  assert.match(unavailable, /SERVICE_UNAVAILABLE/);
+  assert.match(storage, /Files\.isSymbolicLink/);
+  assert.match(security, /requestMatchers\("\/api\/officer\/\*\*"\)\.hasAnyRole\("OFFICER", "ADMIN"\)/);
+});
