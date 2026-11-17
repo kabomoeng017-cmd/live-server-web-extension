@@ -89,6 +89,15 @@ test('notification messages are explicitly marked persistent for RabbitMQ', asyn
   assert.match(queue, /setDeliveryMode\(org\.springframework\.amqp\.core\.MessageDeliveryMode\.PERSISTENT\)/);
 });
 
+test('RabbitMQ Testcontainers credentials come from the container admin configuration', async () => {
+  const integration = await read('backend/src/test/java/bw/gov/dtef/integration/DtefInfrastructureIntegrationTest.java');
+  assert.match(integration, /\.withAdminUser\("dtef_it"\)/);
+  assert.match(integration, /\.withAdminPassword\("dtef_it_password"\)/);
+  assert.match(integration, /registry\.add\("spring\.rabbitmq\.username", RABBIT::getAdminUsername\)/);
+  assert.match(integration, /registry\.add\("spring\.rabbitmq\.password", RABBIT::getAdminPassword\)/);
+  assert.doesNotMatch(integration, /\.withEnv\("RABBITMQ_DEFAULT_(?:USER|PASS)"/);
+});
+
 test('CI requires Testcontainers execution and validates JUnit evidence', async () => {
   const integration = await read('backend/src/test/java/bw/gov/dtef/integration/DtefInfrastructureIntegrationTest.java');
   const workflow = await read('.github/workflows/ci.yml');
