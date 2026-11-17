@@ -95,6 +95,8 @@ test('RabbitMQ Testcontainers credentials come from the container admin configur
   assert.match(integration, /\.withAdminPassword\("dtef_it_password"\)/);
   assert.match(integration, /registry\.add\("spring\.rabbitmq\.username", RABBIT::getAdminUsername\)/);
   assert.match(integration, /registry\.add\("spring\.rabbitmq\.password", RABBIT::getAdminPassword\)/);
+  assert.match(integration, /getMessageProperties\(\)\.getReceivedDeliveryMode\(\)/);
+  assert.doesNotMatch(integration, /getMessageProperties\(\)\.getDeliveryMode\(\)/);
   assert.doesNotMatch(integration, /\.withEnv\("RABBITMQ_DEFAULT_(?:USER|PASS)"/);
 });
 
