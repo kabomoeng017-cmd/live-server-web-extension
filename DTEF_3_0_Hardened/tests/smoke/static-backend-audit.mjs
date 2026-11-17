@@ -182,3 +182,20 @@ test('officer document review is demo-only and production access fails closed', 
   assert.match(storage, /Files\.isSymbolicLink/);
   assert.match(security, /requestMatchers\("\/api\/officer\/\*\*"\)\.hasAnyRole\("OFFICER", "ADMIN"\)/);
 });
+
+
+test('student applications require a verified institution catalogue entry', async () => {
+  const security = await read('backend/src/main/java/bw/gov/dtef/config/SecurityConfig.java');
+  const controller = await read('backend/src/main/java/bw/gov/dtef/institution/InstitutionController.java');
+  const service = await read('backend/src/main/java/bw/gov/dtef/institution/InstitutionService.java');
+  const application = await read('backend/src/main/java/bw/gov/dtef/application/ApplicationService.java');
+  const migration = await read('backend/src/main/resources/db/migration/V5__institution_registry.sql');
+  assert.match(security, /requestMatchers\(HttpMethod\.GET, "\/api\/institutions\/catalogue"\)\.hasAnyRole\("STUDENT", "OFFICER", "INSTITUTION", "ADMIN"\)/);
+  assert.match(security, /requestMatchers\("\/api\/institutions\/admin\/\*\*"\)\.hasRole\("ADMIN"\)/);
+  assert.match(controller, /Connect an institution identity and registry adapter/);
+  assert.match(service, /requireEligibleForApplication/);
+  assert.match(application, /institutions\.requireEligibleForApplication/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS institutions/);
+  assert.match(migration, /DEMO_VERIFIED/);
+  assert.match(service, /MANUAL_OFFICIAL_CONFIRMATION/);
+});

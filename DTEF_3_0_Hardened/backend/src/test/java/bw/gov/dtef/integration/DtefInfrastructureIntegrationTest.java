@@ -87,7 +87,7 @@ class DtefInfrastructureIntegrationTest {
     void postgresFlywayRedisOtpAndApplicationDocumentSubmissionWorkTogether() {
         String migrationVersion = jdbc.queryForObject(
             "select max(version) from flyway_schema_history where success = true", String.class);
-        assertThat(migrationVersion).isEqualTo("4");
+        assertThat(migrationVersion).isEqualTo("5");
 
         // Prove the integration test is using the disposable Redis service, not an in-memory substitute.
         String redisProbe = "dtef:integration:probe:" + java.util.UUID.randomUUID();
@@ -96,6 +96,15 @@ class DtefInfrastructureIntegrationTest {
         redis.delete(redisProbe);
 
         String token = loginAsStudent();
+
+        ResponseEntity<java.util.List> institutionCatalogue = http.exchange("/api/institutions/catalogue",
+            HttpMethod.GET, new HttpEntity<>(bearer(token)), java.util.List.class);
+        assertThat(institutionCatalogue.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(institutionCatalogue.getBody()).anySatisfy(item -> {
+            assertThat(item).isInstanceOf(Map.class);
+            assertThat(((Map<?, ?>) item).get("name")).isEqualTo("University of Botswana");
+            assertThat(((Map<?, ?>) item).get("status")).isEqualTo("DEMO_VERIFIED");
+        });
         Map<String, Object> identity = postJson("/api/omang/verify", token, Map.of("omang", "123456789"), HttpStatus.OK);
         assertThat(identity.get("verified")).isEqualTo(true);
         String verificationId = (String) identity.get("verificationId");
