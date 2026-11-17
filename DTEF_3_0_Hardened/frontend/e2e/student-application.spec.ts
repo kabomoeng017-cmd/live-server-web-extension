@@ -133,3 +133,47 @@ test("rejects a spoofed PDF upload and recovers from an invalid login OTP", asyn
   });
   await expect(page.getByRole("alert").filter({ hasText: /file content does not match its declared type/i })).toBeVisible();
 });
+
+test("restores an incomplete application draft from the server after reload", async ({ page }) => {
+  await signInAsStudent(page);
+  await page.getByLabel(/omang number/i).fill("123456789");
+  await page.getByRole("button", { name: /verify demo identity/i }).click();
+  await expect(page.getByText(/Identity step complete/i)).toBeVisible();
+  await page.getByRole("button", { name: /^continue$/i }).click();
+
+  await page.getByLabel(/admission letter/i).setInputFiles(testPdf("draft-admission.pdf"));
+  await expect(page.getByText(/Uploaded: admission_letter\.pdf/i)).toBeVisible();
+  await expect(page.getByText(/Extraction mode: DEMO_SIMULATION/i)).toBeVisible();
+  await page.getByLabel(/institution/i).fill("Botswana Accountancy College");
+  await page.getByLabel(/programme/i).fill("Bachelor of Accounting");
+  await expect(page.getByLabel(/institution/i)).toHaveValue("Botswana Accountancy College");
+  await expect(page.getByLabel(/programme/i)).toHaveValue("Bachelor of Accounting");
+
+  // Poll the authenticated API until the debounced server-side draft write is complete.
+  await expect.poll(async () => page.evaluate(async () => {
+    const raw = sessionStorage.getItem("dtef.session.v1");
+    const token = raw ? (JSON.parse(raw) as { accessToken?: string }).accessToken : undefined;
+    if (!token) return "";
+    const response = await fetch("/api/applications/draft", { headers: { Authorization: "Bearer " + token } });
+    if (!response.ok) return "";
+    const result = await response.json() as { payload?: { institution?: string } };
+    return result.payload?.institution ?? "";
+  }), { timeout: 15_000 }).toBe("Botswana Accountancy College");
+
+  // Remove the local copy so the reload must recover the draft from the backend.
+  await page.evaluate(() => localStorage.removeItem("dtef-application-draft-v4"));
+  await page.reload();
+  await expect.poll(
+    () => page.evaluate(() => localStorage.getItem("dtef-application-draft-v4") ?? ""),
+    { timeout: 15_000 }
+  ).toContain("Botswana Accountancy College");
+
+  // Identity verification intentionally expires across reloads and must be repeated.
+  await page.getByLabel(/omang number/i).fill("123456789");
+  await page.getByRole("button", { name: /verify demo identity/i }).click();
+  await expect(page.getByText(/Identity step complete/i)).toBeVisible();
+  await page.getByRole("button", { name: /^continue$/i }).click();
+  await expect(page.getByLabel(/institution/i)).toHaveValue("Botswana Accountancy College");
+  await expect(page.getByLabel(/programme/i)).toHaveValue("Bachelor of Accounting");
+  await expect(page.getByText(/Uploaded: admission_letter\.pdf/i)).toBeVisible();
+});
