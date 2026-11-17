@@ -1,0 +1,83 @@
+name: DTEF frontend security dependency refresh
+
+on:
+  push:
+    branches:
+      - automation/dtef-next16-security-upgrade
+  workflow_dispatch:
+    inputs:
+      next_version:
+        description: Exact stable Next.js version
+        required: true
+        default: "16.4.6"
+        type: string
+      react_version:
+        description: Exact stable React and React DOM version
+        required: true
+        default: "19.3.1"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dtef-frontend-security-refresh-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  refresh-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: DTEF_3_0_Hardened/frontend/package-lock.json
+      - name: Configure resilient npm downloads
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+      - name: Resolve exact framework versions and regenerate lockfile
+        working-directory: DTEF_3_0_Hardened/frontend
+        env:
+          NEXT_VERSION: ${{ github.event.inputs.next_version || '16.4.6' }}
+          REACT_VERSION: ${{ github.event.inputs.react_version || '19.3.1' }}
+        run: |
+          npm install --save-exact "next@${NEXT_VERSION}" "react@${REACT_VERSION}" "react-dom@${REACT_VERSION}" "sharp@0.35.5"
+          npm install --save-dev-exact @types/react@19.3.0 @types/react-dom@19.3.0
+      - name: Verify clean reproducible install
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm ci
+      - name: Verify patched runtime versions
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: |
+          npm ls next react react-dom sharp
+          node -e "const expected={next:'16.4.6',react:'19.3.1','react-dom':'19.3.1',sharp:'0.35.5'}; for (const [name,want] of Object.entries(expected)) { const got=require(name+'/package.json').version; if (got!==want) throw new Error(name+' expected '+want+' but found '+got); console.log(name+'='+got); }"
+      - name: Enforce high-severity npm advisory gate
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm audit --audit-level=high
+      - name: TypeScript check
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm run typecheck
+      - name: Frontend unit and regression tests
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm test
+      - name: Next.js production build
+        working-directory: DTEF_3_0_Hardened/frontend
+        run: npm run build
+      - name: Upload generated lockfile and build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtef-next16-dependency-refresh
+          path: |
+            DTEF_3_0_Hardened/frontend/package.json
+            DTEF_3_0_Hardened/frontend/package-lock.json
+            DTEF_3_0_Hardened/frontend/.next/BUILD_ID
+          if-no-files-found: warn
+          retention-days: 7
