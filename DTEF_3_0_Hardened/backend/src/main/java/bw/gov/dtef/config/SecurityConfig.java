@@ -44,6 +44,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/ai/fraud-score").hasAnyRole("OFFICER", "ADMIN")
                 .requestMatchers("/api/student/**", "/api/omang/**", "/api/documents/**", "/api/ai/admission-letter/**", "/api/applications/draft").hasRole("STUDENT")
                 .requestMatchers("/api/officer/**").hasAnyRole("OFFICER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/institutions/catalogue").hasAnyRole("STUDENT", "OFFICER", "INSTITUTION", "ADMIN")
+                .requestMatchers("/api/institutions/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/institutions/**").hasAnyRole("INSTITUTION", "ADMIN")
                 .requestMatchers("/api/payments/process/**", "/api/payments/summary").hasAnyRole("FNBB", "ADMIN")
                 .requestMatchers("/api/payments/student/**").hasAnyRole("STUDENT", "FNBB", "ADMIN")

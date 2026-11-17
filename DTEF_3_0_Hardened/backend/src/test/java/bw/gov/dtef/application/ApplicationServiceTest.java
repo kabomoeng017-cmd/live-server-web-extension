@@ -5,6 +5,7 @@ import bw.gov.dtef.auth.OtpService;
 import bw.gov.dtef.document.DocumentRecord;
 import bw.gov.dtef.document.DocumentRepository;
 import bw.gov.dtef.identity.IdentityVerificationService;
+import bw.gov.dtef.institution.InstitutionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.env.Environment;
@@ -26,6 +27,7 @@ class ApplicationServiceTest {
     private Environment environment;
     private ApplicationStatusHistoryRepository history;
     private ApplicationDocumentLinkRepository applicationDocuments;
+    private InstitutionService institutions;
     private ApplicationService service;
 
     @BeforeEach void setup() {
@@ -33,8 +35,10 @@ class ApplicationServiceTest {
         identity = mock(IdentityVerificationService.class); otp = mock(OtpService.class);
         audit = mock(AuditService.class); environment = mock(Environment.class); history = mock(ApplicationStatusHistoryRepository.class);
         applicationDocuments = mock(ApplicationDocumentLinkRepository.class);
+        institutions = mock(InstitutionService.class);
+        when(institutions.requireEligibleForApplication("University of Botswana")).thenReturn("University of Botswana");
         when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(true);
-        service = new ApplicationService(applications, documents, identity, otp, audit, environment, history, applicationDocuments);
+        service = new ApplicationService(applications, documents, identity, otp, audit, environment, history, applicationDocuments, institutions);
     }
 
     @Test void createsReferenceFromDatabaseSequenceAndChecksOwnershipAndOtp() {

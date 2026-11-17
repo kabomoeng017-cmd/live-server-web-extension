@@ -5,6 +5,7 @@ import bw.gov.dtef.auth.OtpService;
 import bw.gov.dtef.document.DocumentRecord;
 import bw.gov.dtef.document.DocumentRepository;
 import bw.gov.dtef.identity.IdentityVerificationService;
+import bw.gov.dtef.institution.InstitutionService;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
@@ -25,19 +26,23 @@ public class ApplicationService {
     private final Environment environment;
     private final ApplicationStatusHistoryRepository history;
     private final ApplicationDocumentLinkRepository applicationDocuments;
+    private final InstitutionService institutions;
 
     public ApplicationService(ApplicationRepository applications, DocumentRepository documents,
                               IdentityVerificationService identity, OtpService otp, AuditService audit,
                               Environment environment, ApplicationStatusHistoryRepository history,
-                              ApplicationDocumentLinkRepository applicationDocuments) {
+                              ApplicationDocumentLinkRepository applicationDocuments,
+                              InstitutionService institutions) {
         this.applications = applications; this.documents = documents; this.identity = identity; this.otp = otp;
         this.audit = audit; this.environment = environment; this.history = history; this.applicationDocuments = applicationDocuments;
+        this.institutions = institutions;
     }
 
     @Transactional
     public SponsorshipApplication create(String owner, CreateApplicationRequest request) {
         if (!identity.belongsTo(request.identityVerificationId(), owner))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Complete identity verification before submitting.");
+        String verifiedInstitutionName = institutions.requireEligibleForApplication(request.institution());
         DocumentRecord admission = documents.findByIdAndOwnerSubject(request.admissionDocumentId(), owner)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Admission document was not found for this account."));
         if (!"ADMISSION_LETTER".equals(admission.getDocumentType()) || !isSubmittable(admission.getStatus()))
@@ -62,7 +67,7 @@ public class ApplicationService {
         long sequence = applications.nextReferenceSequence();
         String reference = "DTEF-" + Year.now() + "-" + String.format("%08d", sequence);
         SponsorshipApplication app = applications.save(new SponsorshipApplication(reference, owner,
-            request.institution().trim(), request.programme().trim(), admission.getId()));
+            verifiedInstitutionName, request.programme().trim(), admission.getId()));
         java.util.List<ApplicationDocumentLink> links = new java.util.ArrayList<>();
         links.add(new ApplicationDocumentLink(reference, admission.getId(), admission.getDocumentType()));
         supporting.forEach(document -> links.add(new ApplicationDocumentLink(reference, document.getId(), document.getDocumentType())));
