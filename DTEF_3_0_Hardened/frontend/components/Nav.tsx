@@ -8,11 +8,12 @@ export default function Nav() {
   const { language, setLanguage, t, largeText, setLargeText, highContrast, setHighContrast } = usePreferences();
   const { session, signOut } = useAuth();
   const pathname = usePathname();
-  const links = [
+  const links: [string, string][] = [
     ["/", t("overview")], ["/student/apply", t("student")], ["/student/tracker", t("tracker")],
     ["/officer", t("officer")], ["/institution", t("institution")], ["/payments", t("fnbb")],
     ["/welfare", t("welfare")], ["/analytics", t("analytics")]
   ];
+  if (session?.role === "ADMIN") links.push(["/admin/institutions", "Institution registry"]);
   return <nav className="nav" aria-label="Main navigation">
     <Link className="brand" href="/"><img className="dtefLogo" src="/dtef-logo.svg" alt="DTEF logo"/><div><b>DTEF<span className="brandDot">.</span></b><small>Digital Funding Ecosystem</small></div></Link>
     <div className="links">{links.map(([href, label]) => <Link href={href} key={href} aria-current={pathname === href ? "page" : undefined}>{label}</Link>)}</div>

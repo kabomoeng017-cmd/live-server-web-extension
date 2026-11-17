@@ -12,6 +12,7 @@ type DocumentResult = { documentId: string; type: string; name: string; size: nu
 type OcrResult = { institution: string; programme: string; campus: string; confidence: number; mode: string; requiresStudentConfirmation: boolean };
 type Draft = { step: number; institution: string; programme: string; admissionDocument: DocumentResult | null; supportingDocuments: DocumentResult[] };
 type Submitted = { reference: string; status: string; createdAt: string };
+type InstitutionOption = { code: string; name: string; status: string };
 function sanitizeDocument(value: unknown): DocumentResult | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
@@ -32,6 +33,8 @@ function ApplyContent() {
   const [supportingDocuments, setSupportingDocuments] = useState<DocumentResult[]>([]);
   const [ocr, setOcr] = useState<OcrResult | null>(null);
   const [institution, setInstitution] = useState("");
+  const [institutionOptions, setInstitutionOptions] = useState<InstitutionOption[]>([]);
+  const [catalogueError, setCatalogueError] = useState("");
   const [programme, setProgramme] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -67,6 +70,14 @@ function ApplyContent() {
       } catch { /* A draft may not exist yet; local draft remains available. */ }
     }
     restore(); return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<InstitutionOption[]>("/api/institutions/catalogue")
+      .then(items => { if (!cancelled) setInstitutionOptions(Array.isArray(items) ? items : []); })
+      .catch(e => { if (!cancelled) setCatalogueError(e instanceof Error ? e.message : "The verified institution catalogue is unavailable."); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -141,8 +152,12 @@ function ApplyContent() {
       {error && <div className="notice danger" role="alert">{error}</div>}{notice && <div className="notice" role="status">{notice}</div>}
       {step === 1 && <><h2>{t("verifyIdentity")}</h2><span className="badge warn">Demo identity adapter</span><p className="muted">Enter a test value only. The demo validates the nine-digit format; it does not verify identity against government records.</p><label>Omang number<input value={omang} onChange={e => setOmang(e.target.value.replace(/\D/g, "").slice(0, 9))} inputMode="numeric" autoComplete="off" maxLength={9} /></label><button className="btn primary" onClick={verifyIdentity} disabled={busy || omang.length !== 9}>{busy ? "Verifying…" : "Verify demo identity"}</button>{identity && <div className="success" role="status">Identity step complete · {identity.maskedOmang} · {identity.provider}</div>}</>}
       {step === 2 && <><h2>{t("admission")}</h2><p className="notice">Upload a PDF, JPG or PNG up to 10 MB. OCR is simulated; you must confirm all extracted details.</p><label>Admission letter<input type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={(e: ChangeEvent<HTMLInputElement>) => uploadDocument("ADMISSION_LETTER", e.target.files?.[0])}/></label>{admissionDocument && <p className="success">Uploaded: {admissionDocument.name} · {admissionDocument.status}</p>}
-        {ocr && <p className="notice">Extraction mode: {ocr.mode}. No automatic eligibility or admission decision is made.</p>}
-        <div className="grid g2"><label>{t("institutionName")}<input value={institution} onChange={e => setInstitution(e.target.value)} maxLength={180} required/></label><label>{t("programme")}<input value={programme} onChange={e => setProgramme(e.target.value)} maxLength={180} required/></label></div></>}
+        {ocr && <p className="notice">Extraction mode: {ocr.mode}. No automatic eligibility or admission decision is made.</p>}{catalogueError && <p className="notice danger" role="alert">{catalogueError}</p>}
+        <div className="grid g2"><label>{t("institutionName")}
+          <input list="dtef-institution-catalogue" value={institution} onChange={e => setInstitution(e.target.value)} maxLength={180} required aria-describedby="institutionCatalogueHelp"/>
+          <datalist id="dtef-institution-catalogue">{institutionOptions.map(item => <option key={item.code} value={item.name} label={item.status === "DEMO_VERIFIED" ? "Demo fixture" : "Verified"}/>)}</datalist>
+          <small id="institutionCatalogueHelp" className="muted">Choose an institution from the verified DTEF catalogue. Demo fixtures are clearly marked.</small>
+        </label><label>{t("programme")}<input value={programme} onChange={e => setProgramme(e.target.value)} maxLength={180} required/></label></div></>}
       {step === 3 && <><h2>{t("documents")}</h2><p className="muted">Upload the required supporting files. A green status in demo mode is not a real malware scan or official document verification.</p>
         <label>Omang copy<input type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={e => uploadDocument("OMANG_COPY", e.target.files?.[0])}/></label>
         <label>Bank confirmation<input type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onChange={e => uploadDocument("BANK_CONFIRMATION", e.target.files?.[0])}/></label>
