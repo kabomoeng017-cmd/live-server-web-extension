@@ -134,7 +134,7 @@ test('officer rejection decisions require and persist a reason', async () => {
   const controller = await read('backend/src/main/java/bw/gov/dtef/application/ApplicationController.java');
   const history = await read('backend/src/main/java/bw/gov/dtef/application/ApplicationStatusHistory.java');
   const migration = await read('backend/src/main/resources/db/migration/V4__application_decision_reason.sql');
-  assert.match(service, /status === ApplicationStatus\.REJECTED && \(normalizedReason === null \|\| normalizedReason\.isBlank\(\)\)/);
+  assert.match(service, /status == ApplicationStatus\.REJECTED && \(normalizedReason == null \|\| normalizedReason\.isBlank\(\)\)/);
   assert.match(service, /APPLICATION_REJECTED/);
   assert.match(controller, /request\.reason\(\)/);
   assert.match(history, /decision_reason/);

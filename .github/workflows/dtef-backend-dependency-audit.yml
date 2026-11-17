@@ -40,13 +40,19 @@ jobs:
         working-directory: DTEF_3_0_Hardened
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: >
-          mvn -B -ntp -f backend/pom.xml
-          org.owasp:dependency-check-maven:13.0.0:check
-          -DfailBuildOnCVSS=11
-          -Dformat=ALL
-          -DdataDirectory="${{ runner.temp }}/dependency-check-data"
-          -DnvdApiKey="$NVD_API_KEY"
+        run: |
+          if [[ -n "$NVD_API_KEY" ]]; then
+            NVD_ARGS=(-DnvdApiKey="$NVD_API_KEY")
+          else
+            echo "::warning::NVD_API_KEY is not configured; the scan will use the public NVD feed and may take longer."
+            NVD_ARGS=()
+          fi
+          mvn -B -ntp -f backend/pom.xml \
+            org.owasp:dependency-check-maven:13.0.0:check \
+            -DfailBuildOnCVSS=11 \
+            -Dformat=ALL \
+            -DdataDirectory="${{ runner.temp }}/dependency-check-data" \
+            "${NVD_ARGS[@]}"
       - name: Upload dependency audit report
         if: always()
         uses: actions/upload-artifact@v4
