@@ -225,3 +225,12 @@ test('institution verification requires a second administrator and keeps registr
   assert.match(auth, /admin\.verifier/);
   assert.match(integration, /institutionRegistrationRequiresIndependentAdminVerificationAndCanBeSuspended/);
 });
+
+
+test('officer document verification requires clean production scans and rechecks institution eligibility', async () => {
+  const service = await read('backend/src/main/java/bw/gov/dtef/application/ApplicationService.java');
+  assert.match(service, /requireDocumentsReadyForVerification/);
+  assert.match(service, /"CLEAN"\.equals\(document\.getStatus\(\)\)/);
+  assert.match(service, /demo && "DEMO_ACCEPTED"\.equals\(document\.getStatus\(\)\)/);
+  assert.match(service, /institutions\.requireEligibleForApplication\(app\.getInstitution\(\)\)/);
+});
