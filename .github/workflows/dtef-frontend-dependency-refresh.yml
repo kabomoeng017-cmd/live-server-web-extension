@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - automation/dtef-next16-security-upgrade
+    paths:
+      - DTEF_3_0_Hardened/frontend/package.json
+      - .github/workflows/dtef-frontend-dependency-refresh.yml
   workflow_dispatch:
     inputs:
       next_version:
@@ -18,7 +21,8 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
+  actions: write
 
 concurrency:
   group: dtef-frontend-security-refresh-${{ github.ref }}
@@ -70,6 +74,39 @@ jobs:
       - name: Next.js production build
         working-directory: DTEF_3_0_Hardened/frontend
         run: npm run build
+      - name: Commit regenerated lockfile to the upgrade branch
+        if: github.ref_name == 'automation/dtef-next16-security-upgrade'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add DTEF_3_0_Hardened/frontend/package-lock.json
+          if git diff --cached --quiet; then
+            echo "The generated lockfile is already committed."
+          else
+            git commit -m "chore(dtef): regenerate patched frontend lockfile"
+            git push origin HEAD:refs/heads/automation/dtef-next16-security-upgrade
+          fi
+      - name: Apply validated frontend upgrade to DTEF branch and start full CI
+        if: github.ref_name == 'automation/dtef-next16-security-upgrade'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: dtef-3.0-milestone-4.2
+        run: |
+          set -euo pipefail
+          git fetch origin "$TARGET_BRANCH"
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          git checkout automation/dtef-next16-security-upgrade -- \
+            DTEF_3_0_Hardened/frontend/package.json \
+            DTEF_3_0_Hardened/frontend/package-lock.json \
+            .github/workflows/dtef-frontend-dependency-refresh.yml
+          git add \
+            DTEF_3_0_Hardened/frontend/package.json \
+            DTEF_3_0_Hardened/frontend/package-lock.json \
+            .github/workflows/dtef-frontend-dependency-refresh.yml
+          git diff --cached --check
+          git commit -m "chore(dtef): upgrade patched Next.js and React dependencies"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          gh workflow run dtef-ci.yml --repo "$GITHUB_REPOSITORY" --ref "$TARGET_BRANCH"
       - name: Upload generated lockfile and build evidence
         if: always()
         uses: actions/upload-artifact@v4
