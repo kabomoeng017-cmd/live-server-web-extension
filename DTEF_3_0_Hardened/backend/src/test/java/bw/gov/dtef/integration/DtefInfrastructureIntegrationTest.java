@@ -6,6 +6,8 @@ import bw.gov.dtef.notification.NotificationQueueService;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
+import org.springframework.boot.autoconfigure.amqp.RabbitProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -53,8 +55,8 @@ class DtefInfrastructureIntegrationTest {
 
     @Container
     static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:3.13-management-alpine")
-        .withEnv("RABBITMQ_DEFAULT_USER", "dtef_it")
-        .withEnv("RABBITMQ_DEFAULT_PASS", "dtef_it_password");
+        .withAdminUser("dtef_it")
+        .withAdminPassword("dtef_it_password");
 
     @DynamicPropertySource
     static void infrastructureProperties(DynamicPropertyRegistry registry) {
@@ -65,8 +67,8 @@ class DtefInfrastructureIntegrationTest {
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
         registry.add("spring.rabbitmq.host", RABBIT::getHost);
         registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
-        registry.add("spring.rabbitmq.username", () -> "dtef_it");
-        registry.add("spring.rabbitmq.password", () -> "dtef_it_password");
+        registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);
+        registry.add("spring.rabbitmq.password", RABBIT::getAdminPassword);
         registry.add("dtef.storage-dir", () -> STORAGE_DIR);
     }
 
@@ -74,6 +76,8 @@ class DtefInfrastructureIntegrationTest {
     @Autowired CapturingOtpDeliveryService otpDelivery;
     @Autowired JdbcTemplate jdbc;
     @Autowired RabbitTemplate rabbitTemplate;
+    @Autowired RabbitProperties rabbitProperties;
+    @Autowired CachingConnectionFactory rabbitConnectionFactory;
     @Autowired NotificationQueueService notificationQueue;
     @Autowired StringRedisTemplate redis;
 
@@ -139,7 +143,26 @@ class DtefInfrastructureIntegrationTest {
     }
 
     @Test
-    void rabbitMqDurablyAcceptsQueuedNotificationMessages() {
+    void rabbitMqDurablyAcceptsQueuedNotificationMessages() throws Exception {
+        assertThat(rabbitProperties.getUsername()).isEqualTo(RABBIT.getAdminUsername());
+        assertThat(rabbitProperties.getPassword()).isEqualTo(RABBIT.getAdminPassword());
+        assertThat(rabbitConnectionFactory.getUsername()).isEqualTo(RABBIT.getAdminUsername());
+        assertThat(rabbitTemplate.getConnectionFactory()).isSameAs(rabbitConnectionFactory);
+        assertThat(rabbitConnectionFactory.getHost()).isEqualTo(RABBIT.getHost());
+        assertThat(rabbitConnectionFactory.getPort()).isEqualTo(RABBIT.getAmqpPort());
+        assertThat(rabbitConnectionFactory.getRabbitConnectionFactory().getUsername()).isEqualTo(RABBIT.getAdminUsername());
+        assertThat(rabbitConnectionFactory.getRabbitConnectionFactory().getPassword()).isEqualTo(RABBIT.getAdminPassword());
+        assertThat(rabbitConnectionFactory.getRabbitConnectionFactory().getVirtualHost()).isEqualTo("/");
+
+        com.rabbitmq.client.ConnectionFactory directFactory = new com.rabbitmq.client.ConnectionFactory();
+        directFactory.setHost(RABBIT.getHost());
+        directFactory.setPort(RABBIT.getAmqpPort());
+        directFactory.setUsername(RABBIT.getAdminUsername());
+        directFactory.setPassword(RABBIT.getAdminPassword());
+        try (com.rabbitmq.client.Connection connection = directFactory.newConnection()) {
+            assertThat(connection.isOpen()).isTrue();
+        }
+
         rabbitTemplate.execute(channel -> {
             channel.queuePurge(NotificationQueueConfig.QUEUE);
             return null;
