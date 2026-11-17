@@ -190,6 +190,7 @@ test('student applications require a verified institution catalogue entry', asyn
   const service = await read('backend/src/main/java/bw/gov/dtef/institution/InstitutionService.java');
   const application = await read('backend/src/main/java/bw/gov/dtef/application/ApplicationService.java');
   const migration = await read('backend/src/main/resources/db/migration/V5__institution_registry.sql');
+  const record = await read('backend/src/main/java/bw/gov/dtef/institution/InstitutionRecord.java');
   assert.match(security, /requestMatchers\(HttpMethod\.GET, "\/api\/institutions\/catalogue"\)\.hasAnyRole\("STUDENT", "OFFICER", "INSTITUTION", "ADMIN"\)/);
   assert.match(security, /requestMatchers\("\/api\/institutions\/admin\/\*\*"\)\.hasRole\("ADMIN"\)/);
   assert.match(controller, /Connect an institution identity and registry adapter/);
@@ -197,7 +198,7 @@ test('student applications require a verified institution catalogue entry', asyn
   assert.match(application, /institutions\.requireEligibleForApplication/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS institutions/);
   assert.match(migration, /DEMO_VERIFIED/);
-  assert.match(service, /MANUAL_OFFICIAL_CONFIRMATION/);
+  assert.match(record, /MANUAL_OFFICIAL_CONFIRMATION/);
 });
 
 
