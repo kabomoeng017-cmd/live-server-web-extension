@@ -173,6 +173,11 @@ class DtefInfrastructureIntegrationTest {
         assertThat(officerDownload.getHeaders().getFirst("X-DTEF-Document-Mode")).isEqualTo("DEMO_UNSCANNED");
         assertThat(new String(officerDownload.getBody(), StandardCharsets.US_ASCII)).startsWith("%PDF-1.4");
 
+        ResponseEntity<Map> verifiedDocuments = http.exchange("/api/applications/" + reference + "/status", HttpMethod.PUT,
+            new HttpEntity<>(Map.of("status", "DOCUMENTS_VERIFIED"), jsonBearer(officerToken)), Map.class);
+        assertThat(verifiedDocuments.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(verifiedDocuments.getBody()).containsEntry("status", "DOCUMENTS_VERIFIED");
+
         ResponseEntity<byte[]> studentDownload = http.exchange(officerDocumentPath, HttpMethod.GET,
             new HttpEntity<>(bearer(token)), byte[].class);
         assertThat(studentDownload.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
