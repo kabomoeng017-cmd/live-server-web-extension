@@ -23,7 +23,7 @@ import java.util.UUID;
 public class DemoAuthController {
     private static final Map<String, String> DEMO_USERS = Map.of(
         "student.demo", "STUDENT", "officer.demo", "OFFICER", "institution.demo", "INSTITUTION",
-        "fnbb.demo", "FNBB", "welfare.demo", "WELFARE", "ministry.demo", "MINISTRY", "admin.demo", "ADMIN"
+        "fnbb.demo", "FNBB", "welfare.demo", "WELFARE", "ministry.demo", "MINISTRY", "admin.demo", "ADMIN", "admin.verifier", "ADMIN"
     );
     private static final Set<String> ALLOWED_ROLES = Set.of("STUDENT", "OFFICER", "INSTITUTION", "FNBB", "WELFARE", "MINISTRY", "ADMIN");
     private final OtpService otpService;

@@ -7,7 +7,8 @@ public class InstitutionDemoDataSeeder implements CommandLineRunner {
  private final InstitutionRepository repository;
  public InstitutionDemoDataSeeder(InstitutionRepository repository){this.repository=repository;}
  @Override public void run(String... args){
-  if(repository.findByCodeIgnoreCase("DEMO-UB").isEmpty())
+  if(repository.findByCodeIgnoreCase("DEMO-UB").isEmpty()
+      && repository.findByNormalizedName(InstitutionService.normalize("University of Botswana")).isEmpty())
    repository.save(InstitutionRecord.demoVerified("DEMO-UB","University of Botswana",InstitutionService.normalize("University of Botswana")));
  }
 }

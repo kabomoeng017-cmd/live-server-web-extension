@@ -41,6 +41,8 @@ public class InstitutionService {
    .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Institution was not found."));
   if(!"PENDING".equals(item.getStatus()))
    throw new ResponseStatusException(HttpStatus.CONFLICT,"Only pending institutions can be manually verified.");
+  if(item.getCreatedBy().equals(actor))
+   throw new ResponseStatusException(HttpStatus.FORBIDDEN,"A different administrator must verify this institution (maker-checker control).");
   item.verifyManually(actor,reference); audit.record(actor,"INSTITUTION_MANUALLY_VERIFIED","INSTITUTION",code); return item;
  }
  @Transactional public InstitutionRecord suspend(String rawCode,String rawReason,String actor) {

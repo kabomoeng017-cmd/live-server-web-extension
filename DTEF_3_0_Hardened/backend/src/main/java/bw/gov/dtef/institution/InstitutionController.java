@@ -18,8 +18,9 @@ public class InstitutionController {
     public InstitutionController(InstitutionService institutions) { this.institutions = institutions; }
 
     @GetMapping("/catalogue")
-    public List<InstitutionView> catalogue() {
-        return institutions.catalogue().stream().map(InstitutionView::from).toList();
+    public List<CatalogueInstitutionView> catalogue() {
+        return institutions.catalogue().stream()
+            .map(item -> new CatalogueInstitutionView(item.getCode(), item.getName(), item.getStatus())).toList();
     }
     @GetMapping("/admin/records")
     public List<InstitutionView> records() {
@@ -59,11 +60,12 @@ public class InstitutionController {
                                            @NotBlank @Size(max=180) String name) {}
     public record VerifyInstitutionRequest(@NotBlank @Size(min=5,max=180) String sourceReference) {}
     public record SuspendInstitutionRequest(@NotBlank @Size(min=10,max=500) String reason) {}
+    public record CatalogueInstitutionView(String code, String name, String status) {}
     public record InstitutionView(String code,String name,String status,String verificationSource,
-                                  String verificationReference,String verifiedBy,Instant verifiedAt) {
+                                  String verificationReference,String verifiedBy,Instant verifiedAt,String createdBy) {
         static InstitutionView from(InstitutionRecord item) {
             return new InstitutionView(item.getCode(),item.getName(),item.getStatus(),item.getVerificationSource(),
-                item.getVerificationReference(),item.getVerifiedBy(),item.getVerifiedAt());
+                item.getVerificationReference(),item.getVerifiedBy(),item.getVerifiedAt(),item.getCreatedBy());
         }
     }
 }
