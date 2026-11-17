@@ -55,7 +55,7 @@ export default function LoginPage() {
   return <><Nav/><main><div className="pageIntro"><div><span className="eyebrow">DTEF / SECURE ACCESS</span><h1>{t("loginTitle")}</h1><p className="lead">Role-based demonstration access with a time-limited one-time password.</p></div></div>
     <section className="panel loginPanel"><div className="notice danger" role="note"><b>Demo environment:</b> {t("demoWarning")} This demo sign-in is disabled when the backend runs in the production profile.</div>
       {!challenge ? <form onSubmit={begin}>
-        <label>{t("role")}<select value={role} onChange={e => setRole(e.target.value as PortalRole)}>{accounts.map(a => <option value={a.role} key={a.role}>{a.label}</option>)}</select></label>
+        <label>{t("role")}<select value={role} onChange={e => setRole(e.target.value as PortalRole)}>{accounts.filter((item, index, list) => list.findIndex(other => other.role === item.role) === index).map(a => <option value={a.role} key={a.role}>{a.label}</option>)}</select></label>
         {role === "ADMIN" && <label>Administrator account<select value={adminUsername} onChange={e => setAdminUsername(e.target.value)}><option value="admin.demo">Primary administrator (register)</option><option value="admin.verifier">Second administrator (verify)</option></select></label>}
         <label>{t("username")}<input value={selected.username} readOnly/></label>
         <label>{t("password")}<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required/></label>
