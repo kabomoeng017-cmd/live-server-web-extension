@@ -7,8 +7,8 @@ import bw.gov.dtef.application.SponsorshipApplication;
 import bw.gov.dtef.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -26,9 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(SecurityConfig.class)
 class OfficerWorkflowSecurityTest {
     @Autowired MockMvc mvc;
-    @MockBean JwtDecoder jwtDecoder;
-    @MockBean ApplicationRepository applications;
-    @MockBean ApplicationService service;
+    @MockitoBean JwtDecoder jwtDecoder;
+    @MockitoBean ApplicationRepository applications;
+    @MockitoBean ApplicationService service;
 
     @Test void officerCanReadTheReviewQueue() throws Exception {
         mvc.perform(get("/api/officer/queue")

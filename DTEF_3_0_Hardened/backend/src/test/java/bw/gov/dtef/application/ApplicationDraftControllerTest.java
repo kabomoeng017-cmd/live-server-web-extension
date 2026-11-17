@@ -1,6 +1,6 @@
 package bw.gov.dtef.application;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
@@ -15,7 +15,7 @@ class ApplicationDraftControllerTest {
         ApplicationDraftRepository repository = mock(ApplicationDraftRepository.class);
         when(repository.findById("student.demo")).thenReturn(Optional.empty());
         Jwt jwt = mock(Jwt.class); when(jwt.getSubject()).thenReturn("student.demo");
-        ApplicationDraftController controller = new ApplicationDraftController(repository, new ObjectMapper());
+        ApplicationDraftController controller = new ApplicationDraftController(repository, JsonMapper.builder().build());
         var result = controller.save(Map.of("step", 2, "institution", "UB", "programme", "BSc"), jwt);
         assertEquals(true, result.get("saved"));
         verify(repository).save(any(ApplicationDraft.class));

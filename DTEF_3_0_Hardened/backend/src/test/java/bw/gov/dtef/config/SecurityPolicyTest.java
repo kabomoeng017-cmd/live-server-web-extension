@@ -2,8 +2,8 @@ package bw.gov.dtef.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(SecurityConfig.class)
 class SecurityPolicyTest {
     @Autowired MockMvc mvc;
-    @MockBean JwtDecoder jwtDecoder;
+    @MockitoBean JwtDecoder jwtDecoder;
 
     @Test void healthEndpointIsPublic() throws Exception {
         mvc.perform(get("/api/health")).andExpect(status().isOk());
