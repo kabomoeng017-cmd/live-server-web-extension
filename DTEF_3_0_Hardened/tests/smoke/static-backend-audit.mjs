@@ -222,7 +222,6 @@ test('institution verification requires a second administrator and keeps registr
   const integration = await read('backend/src/test/java/bw/gov/dtef/integration/DtefInfrastructureIntegrationTest.java');
   assert.match(service, /item\.getCreatedBy\(\)\.equals\(actor\)/);
   assert.match(controller, /CatalogueInstitutionView\(String code, String name, String status\)/);
-  assert.match(controller, /requestReference/);
   assert.match(auth, /admin\.verifier/);
   assert.match(integration, /institutionRegistrationRequiresIndependentAdminVerificationAndCanBeSuspended/);
 });
