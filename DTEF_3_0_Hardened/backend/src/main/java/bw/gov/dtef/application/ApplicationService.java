@@ -113,11 +113,26 @@ public class ApplicationService {
             case COMPLETED, REJECTED -> false;
         };
         if (!allowed) throw new ResponseStatusException(HttpStatus.CONFLICT, "That application status transition is not permitted.");
+        if (status == ApplicationStatus.DOCUMENTS_VERIFIED) requireDocumentsReadyForVerification(reference);
+        if (status == ApplicationStatus.INSTITUTION_CONFIRMED) institutions.requireEligibleForApplication(app.getInstitution());
         app.setStatus(status);
         history.save(new ApplicationStatusHistory(reference, current.name(), status.name(), actor, normalizedReason));
         String auditAction = status == ApplicationStatus.REJECTED ? "APPLICATION_REJECTED" : "APPLICATION_STATUS_CHANGED";
         audit.record(actor, auditAction, "APPLICATION", reference);
         return app;
+    }
+
+    private void requireDocumentsReadyForVerification(String reference) {
+        List<ApplicationDocumentLink> links = applicationDocuments.findByApplicationReferenceOrderByLinkedAtAsc(reference);
+        if (links.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Application documents must be linked before document verification.");
+        List<UUID> ids = links.stream().map(ApplicationDocumentLink::getDocumentId).toList();
+        List<DocumentRecord> linkedDocuments = documents.findAllById(ids);
+        if (linkedDocuments.size() != ids.size()) throw new ResponseStatusException(HttpStatus.CONFLICT, "One or more application document records are missing.");
+        boolean demo = environment.acceptsProfiles(Profiles.of("demo"));
+        boolean hasUnclearedDocument = linkedDocuments.stream().anyMatch(document ->
+            !"CLEAN".equals(document.getStatus()) && !(demo && "DEMO_ACCEPTED".equals(document.getStatus())));
+        if (hasUnclearedDocument) throw new ResponseStatusException(HttpStatus.CONFLICT,
+            "Every application document must pass malware scanning before it can be marked verified.");
     }
 
     private boolean isSubmittable(String status) {
