@@ -25,4 +25,4 @@ jobs:
         -r
         DTEF_3_0_Hardened/backend
       upload-sarif: false
-      fail-on-vuln: false
+      fail-on-vuln: true
