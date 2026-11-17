@@ -88,7 +88,14 @@ public class ApplicationService {
     }
 
     @Transactional
-    public SponsorshipApplication updateStatus(String actor, String reference, ApplicationStatus status) {
+    public SponsorshipApplication updateStatus(String actor, String reference, ApplicationStatus status, String decisionReason) {
+        if (status == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A target application status is required.");
+        String normalizedReason = decisionReason == null ? null : decisionReason.trim();
+        if (normalizedReason != null && normalizedReason.length() > 500)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Decision reason must be at most 500 characters.");
+        if (status == ApplicationStatus.REJECTED && (normalizedReason == null || normalizedReason.isBlank()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A reason is required when rejecting an application.");
+
         SponsorshipApplication app = applications.findByReference(reference)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Application was not found."));
         ApplicationStatus current = app.getStatus();
@@ -102,8 +109,9 @@ public class ApplicationService {
         };
         if (!allowed) throw new ResponseStatusException(HttpStatus.CONFLICT, "That application status transition is not permitted.");
         app.setStatus(status);
-        history.save(new ApplicationStatusHistory(reference, current.name(), status.name(), actor));
-        audit.record(actor, "APPLICATION_STATUS_CHANGED", "APPLICATION", reference);
+        history.save(new ApplicationStatusHistory(reference, current.name(), status.name(), actor, normalizedReason));
+        String auditAction = status == ApplicationStatus.REJECTED ? "APPLICATION_REJECTED" : "APPLICATION_STATUS_CHANGED";
+        audit.record(actor, auditAction, "APPLICATION", reference);
         return app;
     }
 

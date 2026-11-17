@@ -127,3 +127,22 @@ test('application status transitions are restricted to officer and admin roles',
   assert.ok(security.includes('.requestMatchers(HttpMethod.PUT, "/api/applications/**").hasAnyRole("OFFICER", "ADMIN")'));
   assert.match(controller, /@PutMapping\(\"\/\{reference\}\/status\"\)/);
 });
+
+
+test('officer rejection decisions require and persist a reason', async () => {
+  const service = await read('backend/src/main/java/bw/gov/dtef/application/ApplicationService.java');
+  const controller = await read('backend/src/main/java/bw/gov/dtef/application/ApplicationController.java');
+  const history = await read('backend/src/main/java/bw/gov/dtef/application/ApplicationStatusHistory.java');
+  const migration = await read('backend/src/main/resources/db/migration/V4__application_decision_reason.sql');
+  assert.match(service, /status === ApplicationStatus\.REJECTED && \(normalizedReason === null \|\| normalizedReason\.isBlank\(\)\)/);
+  assert.match(service, /APPLICATION_REJECTED/);
+  assert.match(controller, /request\.reason\(\)/);
+  assert.match(history, /decision_reason/);
+  assert.match(migration, /ADD COLUMN decision_reason VARCHAR\(500\)/);
+});
+
+test('officer review endpoints remain role-gated', async () => {
+  const security = await read('backend/src/main/java/bw/gov/dtef/config/SecurityConfig.java');
+  assert.match(security, /requestMatchers\("\/api\/officer\/\*\*"\)\.hasAnyRole\("OFFICER", "ADMIN"\)/);
+  assert.match(security, /requestMatchers\(HttpMethod\.PUT, "\/api\/applications\/\*\*"\)\.hasAnyRole\("OFFICER", "ADMIN"\)/);
+});

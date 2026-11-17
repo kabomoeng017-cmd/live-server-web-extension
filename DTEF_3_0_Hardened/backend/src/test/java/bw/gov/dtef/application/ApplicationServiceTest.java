@@ -69,7 +69,59 @@ class ApplicationServiceTest {
     @Test void rejectsInvalidStatusTransition() {
         SponsorshipApplication existing = new SponsorshipApplication("DTEF-2026-00000001", "student.demo", "UB", "BSc", UUID.randomUUID());
         when(applications.findByReference("DTEF-2026-00000001")).thenReturn(Optional.of(existing));
-        assertThrows(ResponseStatusException.class, () -> service.updateStatus("officer.demo", existing.getReference(), ApplicationStatus.COMPLETED));
+        assertThrows(ResponseStatusException.class, () -> service.updateStatus("officer.demo", existing.getReference(), ApplicationStatus.COMPLETED, null));
+    }
+
+
+    @Test void officerCanAdvanceApplicationAndTheChangeIsAudited() {
+        String reference = "DTEF-2026-00000002";
+        SponsorshipApplication existing = new SponsorshipApplication(reference, "student.demo", "UB", "BSc", UUID.randomUUID());
+        when(applications.findByReference(reference)).thenReturn(Optional.of(existing));
+
+        SponsorshipApplication updated = service.updateStatus("officer.demo", reference, ApplicationStatus.DOCUMENTS_VERIFIED, null);
+
+        assertEquals(ApplicationStatus.DOCUMENTS_VERIFIED, updated.getStatus());
+        org.mockito.ArgumentCaptor<ApplicationStatusHistory> captured = org.mockito.ArgumentCaptor.forClass(ApplicationStatusHistory.class);
+        verify(history).save(captured.capture());
+        assertEquals("APPLIED", captured.getValue().getFromStatus());
+        assertEquals("DOCUMENTS_VERIFIED", captured.getValue().getToStatus());
+        assertEquals("officer.demo", captured.getValue().getChangedBy());
+        verify(audit).record("officer.demo", "APPLICATION_STATUS_CHANGED", "APPLICATION", reference);
+    }
+
+    @Test void rejectionRequiresAReasonAndDoesNotChangeTheApplication() {
+        String reference = "DTEF-2026-00000003";
+        SponsorshipApplication existing = new SponsorshipApplication(reference, "student.demo", "UB", "BSc", UUID.randomUUID());
+        when(applications.findByReference(reference)).thenReturn(Optional.of(existing));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+            () -> service.updateStatus("officer.demo", reference, ApplicationStatus.REJECTED, "   "));
+
+        assertEquals(400, error.getStatusCode().value());
+        assertEquals(ApplicationStatus.APPLIED, existing.getStatus());
+        verify(history, never()).save(any());
+        verify(audit, never()).record(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test void rejectionReasonIsStoredInTheApplicationHistory() {
+        String reference = "DTEF-2026-00000004";
+        SponsorshipApplication existing = new SponsorshipApplication(reference, "student.demo", "UB", "BSc", UUID.randomUUID());
+        when(applications.findByReference(reference)).thenReturn(Optional.of(existing));
+
+        service.updateStatus("officer.demo", reference, ApplicationStatus.REJECTED, "Admission letter could not be verified.");
+
+        org.mockito.ArgumentCaptor<ApplicationStatusHistory> captured = org.mockito.ArgumentCaptor.forClass(ApplicationStatusHistory.class);
+        verify(history).save(captured.capture());
+        assertEquals("Admission letter could not be verified.", captured.getValue().getDecisionReason());
+        verify(audit).record("officer.demo", "APPLICATION_REJECTED", "APPLICATION", reference);
+    }
+
+    @Test void studentCannotReadAnotherStudentsApplication() {
+        String reference = "DTEF-2026-00000005";
+        when(applications.findByReferenceAndOwnerSubject(reference, "student.other")).thenReturn(Optional.empty());
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+            () -> service.getMine("student.other", reference));
+        assertEquals(404, error.getStatusCode().value());
     }
 
     private DocumentRecord document(String type, String status) {

@@ -35,9 +35,10 @@ public class ApplicationController {
     @PutMapping("/{reference}/status")
     public ApplicationView status(@PathVariable String reference, @Valid @RequestBody StatusRequest request,
                                   @AuthenticationPrincipal Jwt jwt) {
-        return ApplicationView.from(service.updateStatus(jwt.getSubject(), reference, request.status()));
+        return ApplicationView.from(service.updateStatus(jwt.getSubject(), reference, request.status(), request.reason()));
     }
-    public record StatusRequest(@jakarta.validation.constraints.NotNull ApplicationStatus status) {}
+    public record StatusRequest(@jakarta.validation.constraints.NotNull ApplicationStatus status,
+                                @jakarta.validation.constraints.Size(max = 500) String reason) {}
     public record ApplicationView(String reference, String institution, String programme, ApplicationStatus status,
                                   Instant createdAt, Instant updatedAt) {
         static ApplicationView from(SponsorshipApplication app) {
