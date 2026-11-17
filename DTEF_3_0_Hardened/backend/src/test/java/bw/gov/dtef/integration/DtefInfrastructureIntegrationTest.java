@@ -171,7 +171,7 @@ class DtefInfrastructureIntegrationTest {
         assertThat(id).isNotBlank();
         Message message = rabbitTemplate.receive(NotificationQueueConfig.QUEUE, 2_000);
         assertThat(message).isNotNull();
-        assertThat(message.getMessageProperties().getDeliveryMode())
+        assertThat(message.getMessageProperties().getReceivedDeliveryMode())
             .isEqualTo(org.springframework.amqp.core.MessageDeliveryMode.PERSISTENT);
         assertThat(new String(message.getBody(), StandardCharsets.UTF_8)).contains(id, "APPLICATION_RECEIVED", "student.demo");
     }
