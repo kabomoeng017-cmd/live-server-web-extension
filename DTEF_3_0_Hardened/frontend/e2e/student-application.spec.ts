@@ -222,7 +222,7 @@ test("institution registration uses independent administrator verification", asy
   await expect(page.getByRole("button", { name: /verify record/i })).toBeDisabled();
 
   await page.getByRole("button", { name: /sign out/i }).click();
-  await expect(page).toHaveURL(/\\/login$/);
+  await expect(page).toHaveURL(/\/login$/);
   await signInAsAdmin(page, "admin.verifier");
 
   await page.getByLabel(`Official source reference for ${code}`).fill(`Official register reference ${suffix}`);
