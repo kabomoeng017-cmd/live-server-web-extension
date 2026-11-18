@@ -71,3 +71,9 @@ security:
     max-attempts: ${OTP_MAX_ATTEMPTS:5}
 dtef:
   storage-dir: ${DTEF_STORAGE_DIR:./var/uploads}
+  antivirus:
+    enabled: ${DTEF_ANTIVIRUS_ENABLED:false}
+    clamav:
+      host: ${CLAMAV_HOST:127.0.0.1}
+      port: ${CLAMAV_PORT:3310}
+      timeout-ms: ${CLAMAV_TIMEOUT_MS:5000}
