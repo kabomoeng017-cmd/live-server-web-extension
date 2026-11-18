@@ -40,7 +40,7 @@ async function signInAsStudent(page: Page, verifyInvalidOtp = false) {
     const invalidOtp = otp === "000000" ? "000001" : "000000";
     await page.locator('input[autocomplete="one-time-code"]').fill(invalidOtp);
     await page.getByRole("button", { name: /verify/i }).click();
-    await expect(page.getByRole("alert").filter({ hasText: /OTP is invalid|expired|challenge is unknown/i })).toBeVisible();
+    await expect(page.locator(".notice.danger").filter({ hasText: /OTP is invalid|expired|challenge is unknown/i }).first()).toBeVisible();
   }
   await page.locator('input[autocomplete="one-time-code"]').fill(otp);
   await page.getByRole("button", { name: /verify/i }).click();
@@ -130,9 +130,9 @@ test.describe("student application submission", () => {
     await page.getByRole("button", { name: /^continue$/i }).click();
 
     await page.getByLabel(/omang copy/i).setInputFiles(testPdf("omang-copy.pdf"));
-    await expect(page.locator(".documentList")).toContainText(/Omang copy uploaded/i);
+    await expect(page.locator(".documentList li").filter({ hasText: /^✓?\\s*Omang copy uploaded$/i })).toBeVisible();
     await page.getByLabel(/bank confirmation/i).setInputFiles(testPdf("bank-proof.pdf"));
-    await expect(page.locator(".documentList")).toContainText(/Bank confirmation uploaded/i);
+    await expect(page.locator(".documentList li").filter({ hasText: /^✓?\\s*Bank confirmation uploaded$/i })).toBeVisible();
     await page.getByRole("button", { name: /^continue$/i }).click();
     await page.getByRole("button", { name: /^continue$/i }).click();
 
@@ -186,7 +186,7 @@ test("rejects a spoofed PDF upload and recovers from an invalid login OTP", asyn
     mimeType: "application/pdf",
     buffer: Buffer.from("this is not a PDF", "ascii")
   });
-  await expect(page.getByRole("alert").filter({ hasText: /file content does not match its declared type/i })).toBeVisible();
+  await expect(page.locator(".notice.danger").filter({ hasText: /file content does not match its declared type/i }).first()).toBeVisible();
 });
 
 
