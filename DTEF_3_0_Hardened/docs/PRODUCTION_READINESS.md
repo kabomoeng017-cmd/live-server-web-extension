@@ -55,3 +55,16 @@ Do not deploy the `demo` profile to a public or government network. Use the `pro
 8. Recalculate Hikari pool size against the maximum HPA replicas and PostgreSQL connection limit. Use PgBouncer or an equivalent connection pooler if required; do not assume the sample pool numbers are suitable for the production database.
 
 The included Kubernetes manifests are deployment examples, not validated manifests for a particular Botswana government cluster. Validate them with the platform's admission policies and staging environment before release.
+
+
+## Current branch implementation notes — 18 November 2026
+
+The following controls are implemented in the development branch, but they do not close the production gates above:
+
+- Institution catalogue records are maintained through an admin workflow with independent maker-checker verification. This is a manual official-source attestation, not a connection to an official institution registry API. The University of Botswana fixture is demo-only.
+- Officer review now exposes linked application documents, SHA-256 metadata, status history and controlled status decisions. Moving an application to `DOCUMENTS_VERIFIED` requires all linked records to exist and to have `CLEAN` scan status in production. The demo profile accepts only the explicit `DEMO_ACCEPTED` fixture status.
+- Demo officer downloads compare stored file size and SHA-256 against recorded metadata. This detects byte changes; it does not establish document authenticity or malware cleanliness.
+- A ClamAV `INSTREAM` adapter and a fail-closed disabled scanner are available for the `prod` profile. The adapter is disabled by default and is not yet connected to the upload path. Production document upload and officer download endpoints still return `503 Service Unavailable`.
+- The scanner's protocol tests use a local fake daemon. No real ClamAV service, signature database, encrypted object store or production quarantine workflow has been connected or certified.
+
+See `DOCUMENT_SCANNING.md` and `MILESTONE_4_3_TEST_RESULTS.md` for the precise implementation boundary and hosted test evidence.
