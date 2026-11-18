@@ -130,9 +130,9 @@ test.describe("student application submission", () => {
     await page.getByRole("button", { name: /^continue$/i }).click();
 
     await page.getByLabel(/omang copy/i).setInputFiles(testPdf("omang-copy.pdf"));
-    await expect(page.locator(".documentList li").filter({ hasText: /^✓?\\s*Omang copy uploaded$/i })).toBeVisible();
+    await expect(page.locator(".documentList li").filter({ hasText: /Omang copy uploaded/i })).toBeVisible();
     await page.getByLabel(/bank confirmation/i).setInputFiles(testPdf("bank-proof.pdf"));
-    await expect(page.locator(".documentList li").filter({ hasText: /^✓?\\s*Bank confirmation uploaded$/i })).toBeVisible();
+    await expect(page.locator(".documentList li").filter({ hasText: /Bank confirmation uploaded/i })).toBeVisible();
     await page.getByRole("button", { name: /^continue$/i }).click();
     await page.getByRole("button", { name: /^continue$/i }).click();
 
