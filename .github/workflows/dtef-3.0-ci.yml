@@ -107,6 +107,7 @@ jobs:
             mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiKey="$NVD_API_KEY"
           else
             echo "::notice::NVD_API_KEY is not configured; using the public NVD feed with a conservative request delay."
+            unset NVD_API_KEY
             mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiDelay=8000
           fi
       - name: Upload Maven dependency audit report
