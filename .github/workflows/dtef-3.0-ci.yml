@@ -101,7 +101,14 @@ jobs:
       - name: Scan Maven dependency tree for known vulnerabilities
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiKey="$NVD_API_KEY"
+        run: |
+          if [ -n "$NVD_API_KEY" ]; then
+            echo "Using the configured NVD API key."
+            mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiKey="$NVD_API_KEY"
+          else
+            echo "::notice::NVD_API_KEY is not configured; using the public NVD feed with a conservative request delay."
+            mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiDelay=8000
+          fi
       - name: Upload Maven dependency audit report
         if: always()
         uses: actions/upload-artifact@v4
