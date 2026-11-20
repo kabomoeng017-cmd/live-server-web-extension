@@ -102,14 +102,11 @@ jobs:
         env:
           NVD_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
-          if [ -n "$NVD_KEY" ]; then
-            echo "Using the configured NVD API key through the dedicated environment-variable setting."
-            mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiKeyEnvironmentVariable=NVD_KEY -DnvdApiDelay=3500
-          else
-            echo "::notice::NVD_API_KEY is not configured; explicitly selecting an unset environment variable for public NVD access."
-            unset NVD_API_KEY
-            mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiKeyEnvironmentVariable=DTEF_NVD_KEY_NOT_CONFIGURED -DnvdApiDelay=8000
+          if [ -z "$NVD_KEY" ]; then
+            echo "::error::NVD_API_KEY repository secret is not configured. Create a free NVD API key and add it under Settings > Secrets and variables > Actions > New repository secret, named NVD_API_KEY. The scan will not be skipped or downgraded."
+            exit 1
           fi
+          mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiKeyEnvironmentVariable=NVD_KEY -DnvdApiDelay=3500
       - name: Upload Maven dependency audit report
         if: always()
         uses: actions/upload-artifact@v4
