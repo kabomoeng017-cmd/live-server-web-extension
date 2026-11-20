@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
-const apiOrigin = (process.env.API_INTERNAL_BASE || "http://localhost:8080").replace(/\/+$/, "");\nconst apiInternalBase = `${apiOrigin}/api`;
+const apiOrigin = (process.env.API_INTERNAL_BASE || "http://localhost:8080").replace(/\/+$/, "");
+const apiInternalBase = `${apiOrigin}/api`;
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
