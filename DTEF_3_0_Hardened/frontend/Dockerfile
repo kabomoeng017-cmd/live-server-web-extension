@@ -8,8 +8,8 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ARG API_INTERNAL_HOSTPORT
-ENV API_INTERNAL_HOSTPORT=${API_INTERNAL_HOSTPORT}
+ARG API_INTERNAL_BASE=http://localhost:8080
+ENV API_INTERNAL_BASE=${API_INTERNAL_BASE}
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run typecheck && npm test && npm run build
 
