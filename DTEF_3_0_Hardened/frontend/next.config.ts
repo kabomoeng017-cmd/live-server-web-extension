@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const apiOrigin = (process.env.API_INTERNAL_BASE || "http://localhost:8080").replace(/\/+$/, "");
-const apiInternalBase = `${apiOrigin}/api`;
+// Accept either an origin (http://backend:8080) or an API base (http://backend:8080/api).
+// Docker Compose supplies the latter; appending /api twice breaks every proxied API request.
+const apiInternalBase = /\\/api$/i.test(apiOrigin) ? apiOrigin : `${apiOrigin}/api`;
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
