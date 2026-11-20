@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const apiInternalBase = (process.env.API_INTERNAL_BASE || (process.env.API_INTERNAL_HOSTPORT ? `http://${process.env.API_INTERNAL_HOSTPORT}/api` : "http://localhost:8080/api")).replace(/\/$/, "");
+const apiOrigin = (process.env.API_INTERNAL_BASE || "http://localhost:8080").replace(/\/+$/, "");\nconst apiInternalBase = `${apiOrigin}/api`;
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
