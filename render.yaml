@@ -1,0 +1,113 @@
+# DTEF 3.0 public demonstration environment.
+# Demo-only: no production government systems or real student records.
+services:
+  - type: pserv
+    name: dtef-demo-rabbitmq
+    runtime: image
+    image:
+      url: docker.io/library/rabbitmq:3.13-management-alpine
+    region: frankfurt
+    plan: starter
+    envVars:
+      - key: RABBITMQ_DEFAULT_USER
+        value: dtef_demo
+      - key: RABBITMQ_DEFAULT_PASS
+        generateValue: true
+
+  - type: pserv
+    name: dtef-demo-api
+    runtime: docker
+    dockerfilePath: DTEF_3_0_Hardened/backend/Dockerfile
+    dockerContext: DTEF_3_0_Hardened/backend
+    region: frankfurt
+    plan: starter
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: demo
+      - key: SERVER_PORT
+        value: "8080"
+      - key: DB_HOST
+        fromDatabase:
+          name: dtef-demo-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: dtef-demo-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: dtef-demo-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: dtef-demo-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: dtef-demo-db
+          property: password
+      - key: SPRING_DATA_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: dtef-demo-redis
+          property: connectionString
+      - key: RABBIT_HOST
+        fromService:
+          type: pserv
+          name: dtef-demo-rabbitmq
+          property: host
+      - key: RABBIT_PORT
+        fromService:
+          type: pserv
+          name: dtef-demo-rabbitmq
+          property: port
+      - key: RABBIT_USER
+        value: dtef_demo
+      - key: RABBIT_PASSWORD
+        fromService:
+          type: pserv
+          name: dtef-demo-rabbitmq
+          envVarKey: RABBITMQ_DEFAULT_PASS
+      - key: JWT_SECRET_BASE64
+        generateValue: true
+      - key: DEMO_PASSWORD
+        value: DemoPass!2026
+      - key: DEMO_OTP_LOG_ENABLED
+        value: "true"
+      - key: DTEF_STORAGE_DIR
+        value: /var/lib/dtef/uploads
+    disk:
+      name: dtef-demo-uploads
+      mountPath: /var/lib/dtef/uploads
+      sizeGB: 1
+
+  - type: web
+    name: dtef-demo-portal
+    runtime: docker
+    dockerfilePath: DTEF_3_0_Hardened/frontend/Dockerfile
+    dockerContext: DTEF_3_0_Hardened/frontend
+    region: frankfurt
+    plan: free
+    autoDeployTrigger: checksPass
+    healthCheckPath: /
+    envVars:
+      - key: API_INTERNAL_HOSTPORT
+        fromService:
+          type: pserv
+          name: dtef-demo-api
+          property: hostport
+
+databases:
+  - name: dtef-demo-db
+    databaseName: dtef
+    user: dtef
+    region: frankfurt
+    plan: free
+    postgresMajorVersion: "16"
+    diskSizeGB: 1
+    ipAllowList: []
+
+previews:
+  generation: off
