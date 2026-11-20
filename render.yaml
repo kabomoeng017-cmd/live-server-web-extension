@@ -22,7 +22,6 @@ services:
     region: frankfurt
     plan: starter
     autoDeployTrigger: checksPass
-    maxShutdownDelaySeconds: 60
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: demo
