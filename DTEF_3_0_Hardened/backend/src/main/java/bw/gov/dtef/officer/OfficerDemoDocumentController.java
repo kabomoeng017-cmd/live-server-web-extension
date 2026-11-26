@@ -43,8 +43,10 @@ public class OfficerDemoDocumentController {
         }
         DocumentRecord document = documents.findById(documentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document was not found."));
-        if (!"DEMO_ACCEPTED".equals(document.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Document is not available for demo review.");
+        String status = document.getStatus();
+        boolean reviewable = "SCANNED_CLEAN".equals(status) || "CLEAN".equals(status) || "DEMO_ACCEPTED".equals(status);
+        if (!reviewable) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Document has not completed the required security checks for review.");
         }
 
         byte[] content;
@@ -65,7 +67,8 @@ public class OfficerDemoDocumentController {
             .filename(document.getOriginalName(), StandardCharsets.UTF_8).build());
         headers.setCacheControl(CacheControl.noStore());
         headers.set("X-Content-Type-Options", "nosniff");
-        headers.set("X-DTEF-Document-Mode", "DEMO_UNSCANNED");
+        headers.set("X-DTEF-Document-Mode", "SCANNED_CLEAN".equals(status) ? "MALWARE_SCANNED" :
+            ("CLEAN".equals(status) ? "CLEAN" : "DEMO_UNSCANNED"));
         headers.set("X-DTEF-Integrity-Check", "SHA256_MATCH");
         return new ResponseEntity<>(content, headers, HttpStatus.OK);
     }
