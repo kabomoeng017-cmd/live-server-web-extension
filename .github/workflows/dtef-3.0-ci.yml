@@ -106,7 +106,20 @@ jobs:
             echo "::error::NVD_API_KEY repository secret is not configured. Create a free NVD API key and add it under Settings > Secrets and variables > Actions > New repository secret, named NVD_API_KEY. The scan will not be skipped or downgraded."
             exit 1
           fi
-          mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiKeyEnvironmentVariable=NVD_KEY -DnvdApiDelay=3500
+          # Maven Central can temporarily return HTTP 429 while resolving the scanner plugin.
+          # Retry the same mandatory audit; never convert a resolution failure into a pass.
+          for attempt in 1 2 3; do
+            if mvn -B -ntp -f backend/pom.xml org.owasp:dependency-check-maven:13.0.0:check -DfailBuildOnCVSS=7 -Dformat=ALL -DnvdApiKeyEnvironmentVariable=NVD_KEY -DnvdApiDelay=3500; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              delay=$((attempt * 30))
+              echo "Dependency audit attempt $attempt failed; retrying in ${delay}s."
+              sleep "$delay"
+            fi
+          done
+          echo "::error::Mandatory Maven dependency audit failed after three attempts."
+          exit 1
       - name: Upload Maven dependency audit report
         if: always()
         uses: actions/upload-artifact@v4
