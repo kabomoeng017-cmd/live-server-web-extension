@@ -52,6 +52,71 @@ class ClamAvDocumentScannerTest {
         assertThrows(ScannerUnavailableException.class, () -> scanner.scan(PDF, "application/pdf"));
     }
 
+    @Test void rejectsNullContent() {
+        ClamAvDocumentScanner scanner = new ClamAvDocumentScanner("127.0.0.1", 3310, 500);
+        assertThrows(IllegalArgumentException.class, () -> scanner.scan(null, "application/pdf"));
+    }
+
+    @Test void rejectsContentLargerThanTenMegabytes() {
+        ClamAvDocumentScanner scanner = new ClamAvDocumentScanner("127.0.0.1", 3310, 500);
+        assertThrows(IllegalArgumentException.class, () -> scanner.scan(new byte[10 * 1024 * 1024 + 1], "application/pdf"));
+    }
+
+    @Test void rejectsNullContentType() {
+        ClamAvDocumentScanner scanner = new ClamAvDocumentScanner("127.0.0.1", 3310, 500);
+        assertThrows(IllegalArgumentException.class, () -> scanner.scan(PDF, null));
+    }
+
+    @Test void rejectsInvalidPort() {
+        assertThrows(IllegalArgumentException.class, () -> new ClamAvDocumentScanner("127.0.0.1", 0, 500));
+        assertThrows(IllegalArgumentException.class, () -> new ClamAvDocumentScanner("127.0.0.1", 65536, 500));
+    }
+
+    @Test void rejectsBlankHost() {
+        assertThrows(IllegalArgumentException.class, () -> new ClamAvDocumentScanner(" ", 3310, 500));
+    }
+
+    @Test void rejectsTimeoutOutsideSafeRange() {
+        assertThrows(IllegalArgumentException.class, () -> new ClamAvDocumentScanner("127.0.0.1", 3310, 99));
+        assertThrows(IllegalArgumentException.class, () -> new ClamAvDocumentScanner("127.0.0.1", 3310, 60001));
+    }
+
+    @Test void rejectsUnsupportedTypeBeforeNetworkConnection() {
+        ClamAvDocumentScanner scanner = new ClamAvDocumentScanner("127.0.0.1", 3310, 500);
+        assertThrows(IllegalArgumentException.class, () -> scanner.scan(PDF, "application/octet-stream"));
+    }
+
+    @Test void daemonClosingWithoutVerdictFailsClosed() throws Exception {
+        try (ServerSocket server = new ServerSocket(0)) {
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            Future<?> closeWithoutResponse = executor.submit(() -> {
+                try (Socket ignored = server.accept()) { /* Deliberately close without a verdict. */ }
+                catch (IOException ex) { throw new RuntimeException(ex); }
+            });
+            try {
+                ClamAvDocumentScanner scanner = new ClamAvDocumentScanner("127.0.0.1", server.getLocalPort(), 1000);
+                assertThrows(ScannerUnavailableException.class, () -> scanner.scan(PDF, "application/pdf"));
+                closeWithoutResponse.get(2, TimeUnit.SECONDS);
+            } finally { executor.shutdownNow(); }
+        }
+    }
+
+    @Test void malformedFoundResponseFailsClosed() {
+        assertThrows(ScannerUnavailableException.class, () -> scanWithFakeDaemon("FOUND", PDF));
+    }
+
+    @Test void streamsPayloadAcrossMultipleFrames() throws Exception {
+        byte[] content = new byte[5001];
+        System.arraycopy("%PDF-1.4".getBytes(StandardCharsets.US_ASCII), 0, content, 0, 8);
+        DocumentScanner.ScanResult result = scanWithFakeDaemon("stream: OK", content);
+        assertEquals(DocumentScanner.Verdict.CLEAN, result.verdict());
+    }
+
+    @Test void rejectsUnsupportedUppercaseTypeRatherThanGuessing() {
+        ClamAvDocumentScanner scanner = new ClamAvDocumentScanner("127.0.0.1", 3310, 500);
+        assertThrows(IllegalArgumentException.class, () -> scanner.scan(PDF, "APPLICATION/PDF "));
+    }
+
     private DocumentScanner.ScanResult scanWithFakeDaemon(String daemonResponse, byte[] expectedContent) throws Exception {
         try (ServerSocket server = new ServerSocket(0)) {
             ExecutorService executor = Executors.newSingleThreadExecutor();
