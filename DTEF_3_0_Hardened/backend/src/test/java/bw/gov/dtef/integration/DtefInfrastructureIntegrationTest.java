@@ -325,7 +325,7 @@ class DtefInfrastructureIntegrationTest {
 
     private Map<String, Object> postJson(String path, String token, Map<String, ?> body, HttpStatus expected) {
         ResponseEntity<Map> response = http.exchange(path, HttpMethod.POST, new HttpEntity<>(body, jsonBearer(token)), Map.class);
-        assertThat(response.getStatusCode()).isEqualTo(expected);
+        assertThat(response.getStatusCode()).as("POST %s response body: %s", path, response.getBody()).isEqualTo(expected);
         return response.getBody();
     }
 
