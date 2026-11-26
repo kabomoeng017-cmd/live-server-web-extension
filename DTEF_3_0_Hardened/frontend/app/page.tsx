@@ -2,7 +2,6 @@
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import ApplicantAssistant from "@/components/ApplicantAssistant";
-import { usePreferences } from "@/lib/i18n";
 
 const studentServices = [
   ["Start / continue application", "Complete your funding application, upload supporting documents and save your progress.", "/student/apply", "01"],
@@ -11,7 +10,6 @@ const studentServices = [
 ];
 
 export default function Home() {
-  const { t } = usePreferences();
   return <><Nav/><main className="govHome">
     <div className="prototypeBanner" role="note">DEMONSTRATION PROTOTYPE — Not an official Botswana Government website. Do not submit real personal, Omang or banking information.</div>
     <section className="govHero"><div className="heroCopy"><span className="eyebrow">REPUBLIC OF BOTSWANA / STUDENT SERVICES</span><h1>Student funding application</h1><p>Apply for tertiary education sponsorship, manage your supporting documents and follow your application progress from one student-focused space.</p><div className="heroActions"><Link className="btn primary" href="/student/apply">Start or continue application</Link><Link className="textLink" href="/student/tracker">Track my application <span>→</span></Link></div></div><div className="heroSeal" aria-label="Student funding services"><div className="sealDiamond"><span>BW</span></div><b>Your education<br/>funding journey</b><small>Apply · Submit · Track</small></div></section>
