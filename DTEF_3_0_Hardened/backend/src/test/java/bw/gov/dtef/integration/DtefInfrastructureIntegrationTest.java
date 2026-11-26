@@ -1,6 +1,7 @@
 package bw.gov.dtef.integration;
 
 import bw.gov.dtef.auth.OtpDeliveryService;
+import bw.gov.dtef.document.DocumentScanner;
 import bw.gov.dtef.notification.NotificationQueueConfig;
 import bw.gov.dtef.notification.NotificationQueueService;
 import org.junit.jupiter.api.Test;
@@ -162,7 +163,7 @@ class DtefInfrastructureIntegrationTest {
         assertThat(officerDetail.getBody().get("application")).isInstanceOf(Map.class);
         java.util.List<?> officerDocuments = (java.util.List<?>) officerDetail.getBody().get("documents");
         assertThat(officerDocuments).hasSize(3);
-        assertThat(((Map<?, ?>) officerDocuments.get(0)).get("status")).isEqualTo("DEMO_ACCEPTED");
+        assertThat(((Map<?, ?>) officerDocuments.get(0)).get("status")).isEqualTo("SCANNED_CLEAN");
 
         String admissionDocumentId = admission.get("documentId").toString();
         String officerDocumentPath = "/api/officer/applications/" + reference + "/documents/" + admissionDocumentId;
@@ -170,7 +171,8 @@ class DtefInfrastructureIntegrationTest {
             new HttpEntity<>(bearer(officerToken)), byte[].class);
         assertThat(officerDownload.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(officerDownload.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
-        assertThat(officerDownload.getHeaders().getFirst("X-DTEF-Document-Mode")).isEqualTo("DEMO_UNSCANNED");
+        assertThat(officerDownload.getHeaders().getFirst("X-DTEF-Document-Mode")).isNotBlank();
+        assertThat(officerDownload.getHeaders().getFirst("X-DTEF-Document-Mode")).isNotEqualTo("DEMO_UNSCANNED");
         assertThat(new String(officerDownload.getBody(), StandardCharsets.US_ASCII)).startsWith("%PDF-1.4");
 
         ResponseEntity<Map> verifiedDocuments = http.exchange("/api/applications/" + reference + "/status", HttpMethod.PUT,
@@ -317,7 +319,7 @@ class DtefInfrastructureIntegrationTest {
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         ResponseEntity<Map> response = http.exchange("/api/documents", HttpMethod.POST, new HttpEntity<>(parts, headers), Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).containsEntry("status", "DEMO_ACCEPTED");
+        assertThat(response.getBody()).containsEntry("status", "SCANNED_CLEAN");
         return response.getBody();
     }
 
@@ -342,6 +344,11 @@ class DtefInfrastructureIntegrationTest {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class TestOtpConfiguration {
+        // The integration suite uses a deterministic clean verdict for synthetic fixture PDFs.
+        // Real ClamAV protocol and malware-detection behavior is covered by scanner-specific tests.
+        @Bean @Primary DocumentScanner integrationTestDocumentScanner() {
+            return (content, contentType) -> new DocumentScanner.ScanResult(DocumentScanner.Verdict.CLEAN, null);
+        }
         @Bean @Primary CapturingOtpDeliveryService capturingOtpDeliveryService() { return new CapturingOtpDeliveryService(); }
     }
 
