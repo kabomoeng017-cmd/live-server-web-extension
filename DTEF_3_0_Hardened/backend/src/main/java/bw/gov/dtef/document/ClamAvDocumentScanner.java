@@ -19,7 +19,7 @@ import java.util.Set;
  * The upload controller is not wired to this adapter yet; production uploads remain disabled.
  */
 @Component
-@Profile("prod")
+@Profile("demo")
 @ConditionalOnProperty(prefix = "dtef.antivirus", name = "enabled", havingValue = "true")
 public class ClamAvDocumentScanner implements DocumentScanner {
     private static final int MAX_BYTES = 10 * 1024 * 1024;
