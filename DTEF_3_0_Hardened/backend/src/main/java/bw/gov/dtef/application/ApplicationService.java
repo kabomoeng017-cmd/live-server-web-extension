@@ -130,13 +130,14 @@ public class ApplicationService {
         if (linkedDocuments.size() != ids.size()) throw new ResponseStatusException(HttpStatus.CONFLICT, "One or more application document records are missing.");
         boolean demo = environment.acceptsProfiles(Profiles.of("demo"));
         boolean hasUnclearedDocument = linkedDocuments.stream().anyMatch(document ->
-            !"CLEAN".equals(document.getStatus()) && !(demo && "DEMO_ACCEPTED".equals(document.getStatus())));
+            !"CLEAN".equals(document.getStatus()) && !"SCANNED_CLEAN".equals(document.getStatus()) && !(demo && "DEMO_ACCEPTED".equals(document.getStatus())));
         if (hasUnclearedDocument) throw new ResponseStatusException(HttpStatus.CONFLICT,
             "Every application document must pass malware scanning before it can be marked verified.");
     }
 
     private boolean isSubmittable(String status) {
-        return "CLEAN".equals(status) || (environment.acceptsProfiles(Profiles.of("demo")) && "DEMO_ACCEPTED".equals(status));
+        return "CLEAN".equals(status) || "SCANNED_CLEAN".equals(status) ||
+            (environment.acceptsProfiles(Profiles.of("demo")) && "DEMO_ACCEPTED".equals(status));
     }
 
     public record CreateApplicationRequest(
