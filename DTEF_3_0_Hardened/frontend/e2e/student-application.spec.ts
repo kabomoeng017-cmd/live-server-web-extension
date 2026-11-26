@@ -48,7 +48,10 @@ async function signInAsStudent(page: Page, verifyInvalidOtp = false) {
 }
 
 async function signInAsOfficer(page: Page) {
-  await page.goto("/login");
+  await page.goto("/admin-access");
+  await page.getByRole("link", { name: /DTEF officer/i }).click();
+  await expect(page).toHaveURL(/access=admin&role=OFFICER/);
+  await expect(page.getByRole("heading", { name: /staff and administrator sign in/i })).toBeVisible();
   await page.getByLabel(/role/i).selectOption("OFFICER");
   await page.getByLabel(/password/i).fill("DemoPass!2026");
   await page.getByRole("button", { name: /continue to otp/i }).click();
@@ -60,7 +63,10 @@ async function signInAsOfficer(page: Page) {
 }
 
 async function signInAsAdmin(page: Page, username: "admin.demo" | "admin.verifier") {
-  await page.goto("/login");
+  await page.goto("/admin-access");
+  await page.getByRole("link", { name: /System administrator/i }).click();
+  await expect(page).toHaveURL(/access=admin&role=ADMIN/);
+  await expect(page.getByRole("heading", { name: /staff and administrator sign in/i })).toBeVisible();
   await page.getByLabel(/role/i).selectOption("ADMIN");
   if (username === "admin.verifier") {
     await page.getByLabel(/administrator account/i).selectOption("admin.verifier");
